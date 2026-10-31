@@ -7,3 +7,7 @@ export const GAME_HEIGHT = 540;
 export const PIXEL_ART = false;
 
 export const BACKGROUND_COLOR = '#0b0d1a';
+
+/** Bundled with @fontsource (works offline); loaded before the first scene draws text with it. */
+export const FONT_MONO = '"IBM Plex Mono", monospace';
+export const FONT_MONO_FACES = ['400 16px "IBM Plex Mono"', '700 16px "IBM Plex Mono"'];

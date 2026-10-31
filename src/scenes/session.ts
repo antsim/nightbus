@@ -1,6 +1,7 @@
 import type * as Phaser from 'phaser';
 import type { Route } from '../core/route';
 import { GameSession } from '../core/session';
+import { SceneKeys } from './keys';
 
 const REGISTRY_KEY = 'session';
 const ROUTE_KEY = 'route';
@@ -26,9 +27,27 @@ export function getRoute(scene: Phaser.Scene): Route {
   return route;
 }
 
-/** `?seed=123` in the URL reproduces a run; otherwise a fresh seed. */
-export function seedFromUrl(): number {
+/** A fresh seed for a new run: at most five digits, so it is easy to share. */
+export function newSeed(): number {
+  return ((Date.now() ^ Math.floor(performance.now() * 1000)) >>> 0) % 100_000;
+}
+
+let urlSeedUsed = false;
+
+/** `?seed=123` in the URL reproduces a run (first run only); otherwise a fresh seed. */
+export function nextSeed(): number {
   const param = new URLSearchParams(window.location.search).get('seed');
   const parsed = param === null ? NaN : Number(param);
-  return Number.isFinite(parsed) ? parsed >>> 0 : Date.now() >>> 0;
+  if (!urlSeedUsed && Number.isFinite(parsed)) {
+    urlSeedUsed = true;
+    return parsed >>> 0;
+  }
+  return newSeed();
+}
+
+/** Starts a new run on the loaded route and switches to the bus. */
+export function startRun(scene: Phaser.Scene, seed = nextSeed()): void {
+  // MVP: fixed starting values from BALANCE.start; later the bar phase sets them.
+  setSession(scene, GameSession.start({ seed }, getRoute(scene)));
+  scene.scene.start(SceneKeys.Bus);
 }

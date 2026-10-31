@@ -1,14 +1,13 @@
 import * as Phaser from 'phaser';
 import { ASSETS, AUDIO, type FileAsset } from '../assets/manifest';
-import { GAME_HEIGHT, GAME_WIDTH } from '../config';
+import { FONT_MONO_FACES, GAME_HEIGHT, GAME_WIDTH } from '../config';
 import type { Route } from '../core/route';
-import { GameSession } from '../core/session';
 import { BALANCE } from '../data/balance';
 import { STR } from '../data/strings.fi';
 import { StaticRouteProvider, type RouteProvider } from '../services/routeProvider';
 import { ensurePlaceholderTextures } from '../ui/placeholderTextures';
 import { SceneKeys } from './keys';
-import { seedFromUrl, setRoute, setSession } from './session';
+import { setRoute } from './session';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -27,11 +26,11 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     ensurePlaceholderTextures(this);
-    void this.startRun(new StaticRouteProvider());
+    void this.prepare(new StaticRouteProvider());
   }
 
-  private async startRun(provider: RouteProvider): Promise<void> {
-    // MVP: fixed starting values from BALANCE.start; later the bar phase sets them.
+  private async prepare(provider: RouteProvider): Promise<void> {
+    await loadFonts();
     const routeId = BALANCE.start.routeId;
     let route: Route;
     try {
@@ -45,7 +44,15 @@ export class BootScene extends Phaser.Scene {
       return;
     }
     setRoute(this, route);
-    setSession(this, GameSession.start({ seed: seedFromUrl() }, route));
-    this.scene.start(SceneKeys.Bus);
+    this.scene.start(SceneKeys.Title);
+  }
+}
+
+/** Wait for bundled fonts so the first draw doesn't use a fallback. Never blocks the game on failure. */
+async function loadFonts(): Promise<void> {
+  try {
+    await Promise.all(FONT_MONO_FACES.map((face) => document.fonts.load(face)));
+  } catch (err) {
+    console.warn('Font loading failed', err);
   }
 }

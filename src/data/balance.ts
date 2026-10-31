@@ -146,6 +146,16 @@ export const BALANCE = {
       fillers: ['mm', 'mmh', 'rrh', 'hh', '…', 'öö', 'nn'],
     },
   },
+  score: {
+    /** Points for getting off at home; other outcomes start from here too. */
+    base: 1000,
+    wrongStopPenalty: 150,
+    terminusPenalty: 200,
+    awakeBonusPerMin: 10,
+    microsleepPenalty: 50,
+    /** Humorous lines on the receipt. */
+    maxLines: 3,
+  },
   intoxication: {
     /** Intoxication wears off slowly over time. */
     decayPerMin: 0.003,

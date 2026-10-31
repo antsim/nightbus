@@ -1,3 +1,5 @@
+import '@fontsource/ibm-plex-mono/400.css';
+import '@fontsource/ibm-plex-mono/700.css';
 import * as Phaser from 'phaser';
 import { BACKGROUND_COLOR, GAME_HEIGHT, GAME_WIDTH, PIXEL_ART } from './config';
 import { SCENES } from './scenes';
