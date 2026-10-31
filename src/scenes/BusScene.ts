@@ -11,6 +11,9 @@ import { nextStop, type Route } from '../core/route';
 import type { GameSession } from '../core/session';
 import { BALANCE } from '../data/balance';
 import { STR } from '../data/strings.fi';
+import { appEvents } from '../services/appEvents';
+import { isPaused } from '../services/lifecycle';
+import { keepScreenOn } from '../services/wakeLock';
 import { BusInterior } from '../ui/BusInterior';
 import { Eyelids } from '../ui/Eyelids';
 import { MeterBar } from '../ui/MeterBar';
@@ -139,12 +142,23 @@ export class BusScene extends Phaser.Scene {
       bus.on('runEnded', ({ outcome }) => this.endRun(outcome)),
     ];
 
+    // Background or phone upright: freeze the ride (scene updates stop, so the game clock stops).
+    offs.push(appEvents.on('pausedChanged', ({ paused }) => this.setPaused(paused)));
+    keepScreenOn(true);
+
     this.scene.launch(SceneKeys.Debug);
+    if (isPaused()) this.time.delayedCall(0, () => this.setPaused(true));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      keepScreenOn(false);
       offs.forEach((off) => off());
       this.engine?.destroy();
       this.scene.stop(SceneKeys.Debug);
     });
+  }
+
+  private setPaused(paused: boolean): void {
+    if (paused) this.scene.pause();
+    else this.scene.resume();
   }
 
   private setUpFilters(): void {

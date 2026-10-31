@@ -40,6 +40,10 @@ export class TextButton {
     this.bg.on(Phaser.Input.Events.GAMEOBJECT_POINTER_UP, onClick);
   }
 
+  destroy(): void {
+    this.container.destroy();
+  }
+
   setText(text: string): this {
     this.label.setText(text);
     return this;

@@ -67,6 +67,12 @@ export const STR = {
     shareTitle: 'Viimeinen yöbussi – kuitti',
   },
 
+  app: {
+    rotate: 'Käännä puhelin vaakasuuntaan',
+    update: 'Uusi versio saatavilla – päivitä',
+    install: 'Asenna peli',
+    iosInstall: 'Asenna peli: Jaa → Lisää Koti-valikkoon',
+  },
   hud: {
     fatigue: 'Väsymys',
   },

@@ -42,6 +42,8 @@ export function loadBest(storage: KeyValueStorage | null = defaultStorage()): Be
 
 /** Saves the report if it beats the stored best. Returns true for a new record. */
 export function saveIfBest(report: RunReport, now: Date, storage: KeyValueStorage | null = defaultStorage()): boolean {
+  // A zero score is never a record, not even the first one.
+  if (report.score <= 0) return false;
   const best = loadBest(storage);
   if (best && best.score >= report.score) return false;
   const entry: BestScore = {

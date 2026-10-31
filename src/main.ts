@@ -1,8 +1,15 @@
-import '@fontsource/ibm-plex-mono/400.css';
-import '@fontsource/ibm-plex-mono/700.css';
+import '@fontsource/ibm-plex-mono/latin-400.css';
+import '@fontsource/ibm-plex-mono/latin-700.css';
 import * as Phaser from 'phaser';
 import { BACKGROUND_COLOR, GAME_HEIGHT, GAME_WIDTH, PIXEL_ART } from './config';
 import { SCENES } from './scenes';
+import { initInstall } from './services/install';
+import { initLifecycle } from './services/lifecycle';
+import { initPwa } from './services/pwa';
+
+initPwa();
+initInstall();
+initLifecycle();
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,

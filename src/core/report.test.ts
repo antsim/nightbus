@@ -142,6 +142,12 @@ describe('best score', () => {
     expect([...storage.data.keys()]).toEqual(['yobussi.v1.best']);
   });
 
+  it('never counts a zero score as a record', () => {
+    const storage = memory();
+    expect(saveIfBest(report(0), now, storage)).toBe(false);
+    expect(loadBest(storage)).toBeNull();
+  });
+
   it('ignores corrupted data and throwing storage', () => {
     const storage = memory();
     storage.setItem('yobussi.v1.best', '{not json');
