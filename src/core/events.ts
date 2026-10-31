@@ -12,6 +12,12 @@ export type GameEvents = {
   stopReached: StopEvent;
   stopDeparted: StopEvent;
   terminusReached: StopEvent;
+  stopMissedWhileAsleep: StopEvent;
+  microsleep: { startMin: number; durationMin: number; stopsMissed: string[] };
+  wokeUp: { durationMin: number };
+  waveStarted: { depth: number };
+  streetLightPassed: Record<string, never>;
+  jolt: { source: 'brake' | 'streetLight'; amount: number };
 };
 
 export type GameEventName = keyof GameEvents;

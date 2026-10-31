@@ -7,9 +7,20 @@ export const STR = {
   bus: {
     nextStopUnknown: 'Seuraava: ???',
     terminus: 'Päätepysäkki. Kaikki ulos.',
+    hint: 'Pidä silmät auki: välilyönti tai napautus',
+    asleep: 'zzz…',
+  },
+  hud: {
+    fatigue: 'Väsymys',
   },
   debug: {
-    title: 'DEBUG (F1 piilota, F2 nopeus)',
+    title: 'DEBUG (F1 piilota, F2 nopeus, F3 max väsymys)',
+    eyes: 'Silmät',
+    waves: 'aaltoja',
+    asleep: 'nukkuu',
+    confused: 'sekava',
+    microsleeps: 'Mikrounet',
+    sinceLast: 'edellisestä',
     clock: 'Kello',
     timeScale: 'Aikakerroin',
     timeScaleUnit: 'min/s',

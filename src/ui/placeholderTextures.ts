@@ -1,6 +1,7 @@
 import type * as Phaser from 'phaser';
 import { TextureKeys } from '../assets/manifest';
 import { createRng, type Rng } from '../core/rng';
+import { BALANCE } from '../data/balance';
 
 // Generated stand-ins for scenery art. A real image loaded under the same
 // key in the manifest takes precedence.
@@ -33,10 +34,15 @@ function buildings(base: number, minH: number, maxH: number, windowColor: number
   };
 }
 
+/** One street light per tile, so lamps pass exactly at the core's street-light spacing. */
+const LAMP_TILE_WIDTH = Math.round(BALANCE.streetLights.spacingRouteSec * BALANCE.scenery.pxPerRouteSec);
+/** Window centre is 440 px into the tile sprite; put the lamp head there at each core crossing. */
+const LAMP_HEAD_X = 440 % LAMP_TILE_WIDTH;
+
 const streetLamp: Painter = (g) => {
   const { width, height } = g.getData('size') as { width: number; height: number };
   const ground = height - 34;
-  const poleX = 60;
+  const poleX = LAMP_HEAD_X - 22;
   // Light cone and pool on the pavement.
   g.fillStyle(0xffd27a, 0.13).fillTriangle(poleX + 18, 52, poleX - 50, ground, poleX + 90, ground);
   g.fillStyle(0xffd27a, 0.18).fillEllipse(poleX + 20, ground + 4, 160, 18);
@@ -53,7 +59,7 @@ const streetLamp: Painter = (g) => {
 const PLACEHOLDERS: Record<string, Placeholder> = {
   [TextureKeys.sceneryFar]: { width: 512, height: 120, paint: buildings(0x161a36, 40, 110, 0xffd166, 0.35) },
   [TextureKeys.sceneryMid]: { width: 640, height: 170, paint: buildings(0x1f2447, 70, 160, 0xffe29a, 0.6) },
-  [TextureKeys.sceneryNear]: { width: 330, height: 260, paint: streetLamp },
+  [TextureKeys.sceneryNear]: { width: LAMP_TILE_WIDTH, height: 260, paint: streetLamp },
 };
 
 export function ensurePlaceholderTextures(scene: Phaser.Scene): void {

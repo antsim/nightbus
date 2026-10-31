@@ -1,9 +1,10 @@
 import { BALANCE } from '../data/balance';
 import { createRide, type BusRideState } from './busRide';
 import { createClock, type ClockState } from './clock';
+import { createDrowsiness, type DrowsinessState } from './drowsiness';
 import type { GameEventName, GameEvents } from './events';
 import { createMeters, type ActiveModifier, type Meters } from './meters';
-import { seedToState } from './rng';
+import { rngFrom, seedToState } from './rng';
 
 /** One significant event, stored for the end-of-run report. */
 export type LogEntry = {
@@ -21,6 +22,7 @@ export interface RunState {
   money: number;
   modifiers: ActiveModifier[];
   ride: BusRideState;
+  drowsiness: DrowsinessState;
   log: LogEntry[];
 }
 
@@ -37,19 +39,23 @@ export interface RunInit {
 
 export function createRun(init: RunInit): RunState {
   const start = BALANCE.start;
+  const rngHolder = { rngState: seedToState(init.seed) };
+  const fatigue = init.fatigue ?? start.fatigue;
+  const drowsiness = createDrowsiness(rngFrom(rngHolder), fatigue);
   return {
     version: 1,
     seed: init.seed,
-    rngState: seedToState(init.seed),
+    rngState: rngHolder.rngState,
     clock: createClock(init.startTime ?? start.time, init.timeScale ?? BALANCE.time.timeScale),
     meters: createMeters({
       intoxication: init.intoxication ?? start.intoxication,
-      fatigue: init.fatigue ?? start.fatigue,
+      fatigue,
       cold: init.cold ?? start.cold,
     }),
     money: Math.round(init.money ?? start.money),
     modifiers: [],
     ride: createRide(init.routeId ?? start.routeId),
+    drowsiness,
     log: [],
   };
 }

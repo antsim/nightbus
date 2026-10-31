@@ -1,11 +1,22 @@
 import { BALANCE } from '../data/balance';
-import { stepRide } from './busRide';
-import { advanceClock, gameMinutesFor } from './clock';
+import { stepRide, type RideEvent } from './busRide';
+import {
+  jolt,
+  microsleepMinutes,
+  openEyes,
+  startSleep,
+  updateEyes,
+  updateSleep,
+} from './drowsiness';
+import { gameMinutesFor } from './clock';
 import { EventBus, type GameEventName, type GameEvents } from './events';
-import { addModifier, updateMeters, type Modifier } from './meters';
+import { addModifier, setMeterValue, updateMeters, type MeterId, type Modifier } from './meters';
 import { rngFrom, type Rng } from './rng';
 import type { Route } from './route';
 import { createRun, type LogEntry, type RunInit, type RunState } from './runState';
+
+/** Player actions. More (e.g. browsing the phone) will be added later. */
+export type PlayerAction = 'openEyes';
 
 /** Owns the state of one run and advances it in fixed steps. Passed between scenes. */
 export class GameSession {
@@ -14,6 +25,7 @@ export class GameSession {
   private accumulatorMs = 0;
   /** Ride offset before the latest step, for smooth rendering between steps. */
   private previousOffsetSec: number;
+  private previousEyelid: number;
 
   /** Without a route the bus doesn't move (e.g. pure meter tests, future walking phase). */
   constructor(
@@ -22,6 +34,7 @@ export class GameSession {
   ) {
     this.rng = rngFrom(state);
     this.previousOffsetSec = state.ride.offsetSec;
+    this.previousEyelid = state.drowsiness.eyelid;
   }
 
   static start(init: RunInit, route?: Route): GameSession {
@@ -41,28 +54,121 @@ export class GameSession {
     }
   }
 
-  /** Advances the simulation by exactly one step. */
+  /** Advances the simulation by exactly one step of `realMs` real milliseconds. */
   step(realMs: number): void {
     const s = this.state;
+    this.previousOffsetSec = s.ride.offsetSec;
+    this.previousEyelid = s.drowsiness.eyelid;
+
+    // During a microsleep's blackout the skipped time has already been applied.
+    if (s.drowsiness.phase === 'asleep') {
+      const sleep = updateSleep(s.drowsiness, realMs);
+      s.drowsiness = sleep.state;
+      if (sleep.wokeUp) this.bus.emit('wokeUp', { durationMin: s.drowsiness.longestMicrosleepMin });
+      this.previousEyelid = s.drowsiness.eyelid;
+      return;
+    }
+
     const dtMin = gameMinutesFor(s.clock, realMs);
-    s.clock = advanceClock(s.clock, realMs);
+    this.advanceWorld(dtMin, false);
+
+    const eyes = updateEyes(s.drowsiness, realMs / 1000, s.meters.fatigue.value, this.rng, s.seed);
+    s.drowsiness = eyes.state;
+    if (eyes.waveStarted && s.drowsiness.wave) this.bus.emit('waveStarted', { depth: s.drowsiness.wave.depth });
+    if (eyes.fellAsleep) this.fallAsleep();
+  }
+
+  /** Moves clock, meters and bus forward by `dtMin` game minutes. */
+  private advanceWorld(dtMin: number, asleep: boolean): RideEvent[] {
+    const s = this.state;
+    s.clock = { ...s.clock, minutes: s.clock.minutes + dtMin };
 
     const result = updateMeters(s.meters, s.modifiers, dtMin);
     s.meters = result.meters;
     s.modifiers = result.modifiers;
     for (const mod of result.expired) this.record('modifierExpired', { id: mod.id, meter: mod.meter });
 
-    this.previousOffsetSec = s.ride.offsetSec;
-    if (this.route) {
-      const ride = stepRide(s.ride, this.route, dtMin * 60);
-      s.ride = ride.ride;
-      for (const { type, stopId, stopIndex } of ride.events) {
-        const payload = { stopId, stopIndex };
+    if (!this.route) return [];
+    const before = s.ride;
+    const ride = stepRide(before, this.route, dtMin * 60);
+    s.ride = ride.ride;
+
+    for (const { type, stopId, stopIndex } of ride.events) {
+      const payload = { stopId, stopIndex };
+      if (asleep) {
+        if (type === 'stopReached') this.record('stopMissedWhileAsleep', payload);
+        if (type === 'terminusReached') this.record('terminusReached', payload);
+      } else if (type === 'stopReached' || type === 'terminusReached') {
         // Arrivals are significant for the report; approach/departure are only notifications.
-        if (type === 'stopReached' || type === 'terminusReached') this.record(type, payload);
-        else this.bus.emit(type, payload);
+        this.record(type, payload);
+      } else {
+        this.bus.emit(type, payload);
       }
     }
+
+    if (!asleep) {
+      if (s.ride.phase === 'braking' && before.phase !== 'braking') this.applyBrakeJolt();
+      const spacing = BALANCE.streetLights.spacingRouteSec;
+      if (Math.floor(s.ride.offsetSec / spacing) > Math.floor(before.offsetSec / spacing)) {
+        this.bus.emit('streetLightPassed', {});
+        this.applyJolt('streetLight', BALANCE.wakers.streetLightJolt);
+      }
+    }
+    return ride.events;
+  }
+
+  private applyJolt(source: 'brake' | 'streetLight', amount: number): void {
+    if (this.state.drowsiness.phase !== 'awake') return;
+    this.state.drowsiness = jolt(this.state.drowsiness, amount);
+    this.bus.emit('jolt', { source, amount });
+  }
+
+  private applyBrakeJolt(): void {
+    const w = BALANCE.wakers;
+    this.applyJolt('brake', w.brakeJolt);
+    this.state.modifiers = addModifier(this.state.modifiers, { id: 'brake-jolt', meter: 'fatigue', ...w.brakeModifier });
+  }
+
+  /** Eyes stayed shut: skip game time, letting the bus drive on without the player. */
+  private fallAsleep(): void {
+    const s = this.state;
+    const fatigue = s.meters.fatigue.value;
+    const startMin = s.clock.minutes;
+    const durationMin = microsleepMinutes(fatigue, this.rng);
+
+    const events = this.advanceWorld(durationMin, true);
+    s.meters = {
+      ...s.meters,
+      fatigue: setMeterValue(s.meters.fatigue, s.meters.fatigue.value - BALANCE.sleep.fatigueRecovery),
+    };
+    s.drowsiness = startSleep(s.drowsiness, startMin, durationMin, this.rng, fatigue);
+    this.previousOffsetSec = s.ride.offsetSec;
+    this.previousEyelid = 1;
+
+    const stopsMissed = events.filter((e) => e.type === 'stopReached').map((e) => e.stopId);
+    this.record('microsleep', { startMin, durationMin, stopsMissed });
+  }
+
+  /** Debug/testing: set a meter directly (F3). */
+  setMeter(id: MeterId, value: number): void {
+    this.state.meters = { ...this.state.meters, [id]: setMeterValue(this.state.meters[id], value) };
+  }
+
+  /** Applies a player action immediately (between steps). */
+  handleInput(action: PlayerAction): void {
+    const d = this.state.drowsiness;
+    switch (action) {
+      case 'openEyes':
+        this.state.drowsiness = openEyes(d, d.elapsedMs + this.accumulatorMs);
+        this.previousEyelid = Math.min(this.previousEyelid, this.state.drowsiness.eyelid);
+        break;
+    }
+  }
+
+  /** Eyelid interpolated between the last two steps, for rendering. */
+  renderEyelid(): number {
+    const alpha = this.accumulatorMs / BALANCE.time.stepMs;
+    return this.previousEyelid + (this.state.drowsiness.eyelid - this.previousEyelid) * alpha;
   }
 
   /** Ride offset interpolated between the last two steps, for rendering. */

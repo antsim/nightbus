@@ -42,6 +42,85 @@ export const BALANCE = {
       perIntox: 2,
     },
   },
+  eyes: {
+    /** How fast the eyelid follows the pull when closing (per real second). */
+    closeRate: 2.2,
+    /** How fast the eyes reopen on their own at fatigue 0 (eyelid units per real second). */
+    reopenRate: 0.25,
+    /** Constant droop at fatigue 1.0. */
+    droopPerFatigue: 0.3,
+    noiseAmplitude: 0.08,
+    /** Noise cycles per real second. */
+    noiseFrequency: 0.35,
+    /** Eyelid at or above this counts as fully closed. */
+    closedThreshold: 0.97,
+    /**
+     * Heavy eyelids: past `start` the eyes pull themselves shut (tipping point),
+     * by `pull` at fatigue 1.0 (`pullRested` at fatigue 0).
+     */
+    heavy: { start: 0.7, pull: 0.6, pullRested: 0.15 },
+    wave: {
+      gapMinSec: 3,
+      gapMaxSec: 8,
+      /** Gap multiplier when rested / exhausted. */
+      gapScaleRested: 1.6,
+      gapScaleExhausted: 0.6,
+      durationMinSec: 2,
+      durationMaxSec: 5,
+      depthBase: 0.15,
+      depthPerFatigue: 0.95,
+      depthJitter: 0.2,
+      maxDepth: 1.4,
+      /** Share of the wave spent closing (the rest is the slow release). */
+      riseShare: 0.4,
+    },
+    input: {
+      /** Eyelid reduction per press. */
+      openAmount: 0.4,
+      /** Presses closer together than this count less (anti-mashing, option a). */
+      spamWindowMs: 300,
+      spamFactor: 0.3,
+      /** Presses while the eyes are less than this closed count less (option b). Set 0 to disable. */
+      halfClosedThreshold: 0.25,
+      earlyPressFactor: 0.5,
+    },
+  },
+  sleep: {
+    /** Eyes fully closed this long (real ms) → microsleep. */
+    graceMs: 1200,
+    /** Game minutes skipped, scaled by fatigue from min to max. */
+    minMinutes: 1,
+    maxMinutes: 6,
+    durationJitter: 0.3,
+    /** Real ms of darkness shown for the microsleep. */
+    blackoutMs: 1800,
+    wakeEyelid: 0.1,
+    /** Real ms of "where am I" effects after waking. */
+    confusionMs: 2000,
+    /** Fatigue removed by the short sleep. */
+    fatigueRecovery: 0.03,
+  },
+  /** How tiredness looks: vignette and blur on the camera. */
+  drowsyLook: {
+    vignetteRadius: { rested: 1, exhausted: 0.6, perEyelid: 0.15 },
+    vignetteStrength: { rested: 0.1, exhausted: 0.5 },
+    /** Blur starts above this fatigue. */
+    blurFromFatigue: 0.45,
+    blurMax: 0.8,
+    blurPerEyelid: 0.5,
+    confusionBlur: 2,
+  },
+  wakers: {
+    /** Eyelid opened by a hard brake / a street light flash. */
+    brakeJolt: 0.15,
+    streetLightJolt: 0.04,
+    /** Brief fatigue relief after a brake jolt (modifier). */
+    brakeModifier: { ratePerMin: -0.02, durationMin: 0.1 },
+  },
+  streetLights: {
+    /** Route seconds between street lights. */
+    spacingRouteSec: 9,
+  },
   intoxication: {
     /** Intoxication wears off slowly over time. */
     decayPerMin: 0.003,
@@ -57,7 +136,7 @@ export const BALANCE = {
   },
   start: {
     intoxication: 0.6,
-    fatigue: 0.4,
+    fatigue: 0.5,
     cold: 0,
     /** Euro cents. */
     money: 2500,

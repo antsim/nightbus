@@ -17,7 +17,7 @@ function bar(value: number): string {
   return `[${'#'.repeat(filled)}${'.'.repeat(BAR_WIDTH - filled)}] ${value.toFixed(3)}`;
 }
 
-/** F1 toggles a text overlay with meters and clock; F2 toggles fast-forward. */
+/** F1 toggles a text overlay with meters and clock; F2 toggles fast-forward; F3 maxes fatigue. */
 export class DebugOverlay {
   private readonly text: Phaser.GameObjects.Text;
   private fast = false;
@@ -43,6 +43,7 @@ export class DebugOverlay {
     if (keyboard) {
       keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F1, true).on('down', () => this.toggle());
       keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F2, true).on('down', () => this.toggleFast());
+      keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F3, true).on('down', () => this.session.setMeter('fatigue', 1));
     }
 
     scene.events.on(Phaser.Scenes.Events.POST_UPDATE, this.refresh, this);
@@ -82,9 +83,24 @@ export class DebugOverlay {
       `${d.money}: ${formatEuros(s.money)}`,
       `${d.modifiers}:${mods.length === 0 ? ' ' + d.none : ''}`,
       ...mods,
+      ...this.eyeLines(),
       `${d.logEntries}: ${s.log.length}`,
       ...this.routeLines(),
     ]);
+  }
+
+  private eyeLines(): string[] {
+    const s = this.session.state;
+    const e = s.drowsiness;
+    const d = STR.debug;
+    const flags = [e.phase === 'asleep' ? d.asleep : '', e.confusedMs > 0 ? d.confused : ''].filter(Boolean).join(', ');
+    const wave = e.wave ? ` (${e.wave.depth.toFixed(2)} ${(e.wave.elapsedSec / e.wave.durationSec * 100).toFixed(0)}%)` : '';
+    const since =
+      e.lastMicrosleepAtMin === null ? d.none : `${(s.clock.minutes - e.lastMicrosleepAtMin).toFixed(1)} min`;
+    return [
+      `${d.eyes.padEnd(8)} ${bar(e.eyelid)} ${d.waves} ${e.waveCount}${wave} ${flags}`,
+      `${d.microsleeps}: ${e.microsleeps}, ${d.sinceLast} ${since}`,
+    ];
   }
 
   private routeLines(): string[] {

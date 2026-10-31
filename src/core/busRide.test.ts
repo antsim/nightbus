@@ -124,13 +124,15 @@ describe('busRide', () => {
 describe('GameSession with a route', () => {
   const line6 = parseRoute(routes);
 
-  it('drives the default route in 3–4 minutes of real time', () => {
+  it('drives the default route in 3–4 minutes of real time when awake', () => {
     const session = GameSession.start({ seed: 1 }, line6);
     let realMs = 0;
     while (!session.finished && realMs < 10 * 60_000) {
       session.tick(BALANCE.time.stepMs);
       realMs += BALANCE.time.stepMs;
+      if (realMs % 500 === 0) session.handleInput('openEyes'); // no microsleeps
     }
+    expect(session.state.drowsiness.microsleeps).toBe(0);
     expect(session.finished).toBe(true);
     expect(realMs / 60_000).toBeGreaterThan(3);
     expect(realMs / 60_000).toBeLessThan(4);
