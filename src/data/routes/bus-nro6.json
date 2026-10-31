@@ -1,0 +1,268 @@
+{
+  "id": "bus-nro6",
+  "lineName": "6",
+  "headsign": "Vatiala",
+  "stops": [
+    {
+      "id": "tampere:0574",
+      "name": "Sorin aukio E",
+      "lat": 61.49557,
+      "lon": 23.77045,
+      "offsetSec": 0
+    },
+    {
+      "id": "tampere:0563",
+      "name": "Yliopisto C",
+      "lat": 61.49473,
+      "lon": 23.77769,
+      "offsetSec": 180
+    },
+    {
+      "id": "tampere:0561",
+      "name": "Tampere-talo",
+      "lat": 61.4967,
+      "lon": 23.77991,
+      "offsetSec": 240
+    },
+    {
+      "id": "tampere:0510",
+      "name": "Sorsapuisto",
+      "lat": 61.49885,
+      "lon": 23.7816,
+      "offsetSec": 360
+    },
+    {
+      "id": "tampere:5000",
+      "name": "Sammonaukio D",
+      "lat": 61.49929,
+      "lon": 23.78942,
+      "offsetSec": 420
+    },
+    {
+      "id": "tampere:5004",
+      "name": "Hippos D",
+      "lat": 61.50154,
+      "lon": 23.80095,
+      "offsetSec": 540
+    },
+    {
+      "id": "tampere:5006",
+      "name": "TAMK",
+      "lat": 61.50225,
+      "lon": 23.80823,
+      "offsetSec": 600
+    },
+    {
+      "id": "tampere:5008",
+      "name": "TAYS D",
+      "lat": 61.50316,
+      "lon": 23.81539,
+      "offsetSec": 660
+    },
+    {
+      "id": "tampere:5038",
+      "name": "Kaupin kampus E",
+      "lat": 61.50424,
+      "lon": 23.82281,
+      "offsetSec": 690
+    },
+    {
+      "id": "tampere:5040",
+      "name": "Hoitokoti",
+      "lat": 61.50472,
+      "lon": 23.82688,
+      "offsetSec": 720
+    },
+    {
+      "id": "tampere:5042",
+      "name": "Ali-Huikkaantie",
+      "lat": 61.50569,
+      "lon": 23.83497,
+      "offsetSec": 780
+    },
+    {
+      "id": "tampere:5044",
+      "name": "Tenniskeskus",
+      "lat": 61.50521,
+      "lon": 23.84566,
+      "offsetSec": 810
+    },
+    {
+      "id": "tampere:5116",
+      "name": "Alasjärvi",
+      "lat": 61.5032,
+      "lon": 23.86145,
+      "offsetSec": 840
+    },
+    {
+      "id": "tampere:5118",
+      "name": "Niihamankatu E",
+      "lat": 61.50036,
+      "lon": 23.8741,
+      "offsetSec": 900
+    },
+    {
+      "id": "tampere:5128",
+      "name": "Linnainmaa E",
+      "lat": 61.49605,
+      "lon": 23.88881,
+      "offsetSec": 960
+    },
+    {
+      "id": "tampere:4572",
+      "name": "Mäentakusenkatu",
+      "lat": 61.49585,
+      "lon": 23.89441,
+      "offsetSec": 990
+    },
+    {
+      "id": "tampere:5130",
+      "name": "Tuluskatu",
+      "lat": 61.49367,
+      "lon": 23.90141,
+      "offsetSec": 1020
+    },
+    {
+      "id": "tampere:5132",
+      "name": "Aitoniitynkatu",
+      "lat": 61.49308,
+      "lon": 23.90782,
+      "offsetSec": 1080
+    },
+    {
+      "id": "tampere:4578",
+      "name": "Leinolan koulu",
+      "lat": 61.49338,
+      "lon": 23.91333,
+      "offsetSec": 1140,
+      "isHome": true
+    },
+    {
+      "id": "tampere:4580",
+      "name": "Hussankatu",
+      "lat": 61.49203,
+      "lon": 23.91956,
+      "offsetSec": 1200
+    },
+    {
+      "id": "tampere:4550",
+      "name": "Holvasti",
+      "lat": 61.49048,
+      "lon": 23.92289,
+      "offsetSec": 1230
+    },
+    {
+      "id": "tampere:4590",
+      "name": "Ilmattarenkatu",
+      "lat": 61.48618,
+      "lon": 23.92851,
+      "offsetSec": 1260
+    },
+    {
+      "id": "tampere:4553",
+      "name": "Orimuskatu",
+      "lat": 61.48467,
+      "lon": 23.92893,
+      "offsetSec": 1320
+    },
+    {
+      "id": "tampere:4554",
+      "name": "Kiveliönkatu",
+      "lat": 61.48395,
+      "lon": 23.93097,
+      "offsetSec": 1350
+    },
+    {
+      "id": "tampere:8140",
+      "name": "Mannakorpi",
+      "lat": 61.48177,
+      "lon": 23.938,
+      "offsetSec": 1380
+    },
+    {
+      "id": "tampere:8142",
+      "name": "Iivarintie",
+      "lat": 61.47944,
+      "lon": 23.94166,
+      "offsetSec": 1440
+    },
+    {
+      "id": "tampere:8144",
+      "name": "Nattari",
+      "lat": 61.4771,
+      "lon": 23.94498,
+      "offsetSec": 1500
+    },
+    {
+      "id": "tampere:8146",
+      "name": "Vatialan koulu",
+      "lat": 61.47761,
+      "lon": 23.95159,
+      "offsetSec": 1560
+    },
+    {
+      "id": "tampere:8148",
+      "name": "Sudenkorennontie",
+      "lat": 61.47992,
+      "lon": 23.96302,
+      "offsetSec": 1620
+    },
+    {
+      "id": "tampere:8170",
+      "name": "Vällintie",
+      "lat": 61.48031,
+      "lon": 23.97044,
+      "offsetSec": 1680
+    },
+    {
+      "id": "tampere:4600",
+      "name": "Vatiala A",
+      "lat": 61.47586,
+      "lon": 23.97769,
+      "offsetSec": 1740,
+      "isTerminus": true
+    }
+  ],
+  "landmarks": [
+    {
+      "id": "sorsapuisto-park",
+      "name": "Sorsapuisto",
+      "sprite": "landmark-park",
+      "atOffsetSec": 330,
+      "side": "right",
+      "hintForStopId": "tampere:0510"
+    },
+    {
+      "id": "tays-hospital",
+      "name": "TAYS (sairaala)",
+      "sprite": "landmark-hospital",
+      "atOffsetSec": 630,
+      "side": "left",
+      "hintForStopId": "tampere:5008"
+    },
+    {
+      "id": "linnainmaa-citymarket",
+      "name": "K-Citymarket",
+      "sprite": "landmark-hypermarket",
+      "atOffsetSec": 930,
+      "side": "left",
+      "hintForStopId": "tampere:5128"
+    },
+    {
+      "id": "leinola-s-market",
+      "name": "S-Market",
+      "sprite": "landmark-supermarket",
+      "atOffsetSec": 1110,
+      "side": "left",
+      "hintForStopId": "tampere:4578"
+    },
+    {
+      "id": "orimuskatu-grill",
+      "name": "Grillikioski",
+      "sprite": "landmark-grill",
+      "atOffsetSec": 1290,
+      "side": "left",
+      "hintForStopId": "tampere:4553"
+    }
+  ]
+}

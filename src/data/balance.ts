@@ -31,6 +31,6 @@ export const BALANCE = {
     /** Euro cents. */
     money: 2500,
     time: '02:10',
-    routeId: 'home-night-bus',
+    routeId: 'bus-nro6',
   },
 } as const;
