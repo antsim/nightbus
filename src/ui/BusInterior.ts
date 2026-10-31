@@ -16,6 +16,7 @@ const SEAT_PATTERN = 0x4f3f7a;
 export class BusInterior {
   readonly stopDisplay: Phaser.GameObjects.Text;
   readonly clock: Phaser.GameObjects.Text;
+  private readonly stoppingSign: Phaser.GameObjects.Text;
 
   constructor(scene: Phaser.Scene, window: Rect, pillarsX: readonly number[]) {
     const { x, y, width, height } = window;
@@ -62,8 +63,24 @@ export class BusInterior {
       })
       .setOrigin(0.5);
 
+    this.stoppingSign = scene.add
+      .text(GAME_WIDTH / 2 - displayW / 2 - 16, 28, STR.bus.stopping, {
+        fontFamily: 'monospace',
+        fontSize: '16px',
+        color: '#ff3b3b',
+        backgroundColor: '#1a0505',
+        padding: { x: 8, y: 6 },
+      })
+      .setOrigin(1, 0.5);
+    this.setStopping(false);
+
     this.clock = scene.add
       .text(GAME_WIDTH - 16, 28, '', { fontFamily: 'monospace', fontSize: '22px', color: '#cfd8ff' })
       .setOrigin(1, 0.5);
+  }
+
+  /** The red "stopping" light above the window. */
+  setStopping(on: boolean): void {
+    this.stoppingSign.setAlpha(on ? 1 : 0.18);
   }
 }

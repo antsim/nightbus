@@ -2,8 +2,9 @@ import { BALANCE } from '../data/balance';
 import { createRide, type BusRideState } from './busRide';
 import { createClock, type ClockState } from './clock';
 import { createDrowsiness, type DrowsinessState } from './drowsiness';
-import type { GameEventName, GameEvents } from './events';
+import type { Announcement, GameEventName, GameEvents } from './events';
 import { createMeters, type ActiveModifier, type Meters } from './meters';
+import type { AlightInfo, Outcome } from './outcome';
 import { rngFrom, seedToState } from './rng';
 
 /** One significant event, stored for the end-of-run report. */
@@ -23,6 +24,12 @@ export interface RunState {
   modifiers: ActiveModifier[];
   ride: BusRideState;
   drowsiness: DrowsinessState;
+  /** Stop button pressed; cleared whenever the bus stops. */
+  stopRequested: boolean;
+  /** Latest stop announcement. */
+  announcement: Announcement | null;
+  outcome: Outcome | null;
+  alight: AlightInfo | null;
   log: LogEntry[];
 }
 
@@ -56,6 +63,10 @@ export function createRun(init: RunInit): RunState {
     modifiers: [],
     ride: createRide(init.routeId ?? start.routeId),
     drowsiness,
+    stopRequested: false,
+    announcement: null,
+    outcome: null,
+    alight: null,
     log: [],
   };
 }

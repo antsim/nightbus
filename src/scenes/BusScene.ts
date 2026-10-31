@@ -2,13 +2,20 @@ import * as Phaser from 'phaser';
 import { SoundKeys } from '../assets/manifest';
 import { GAME_HEIGHT, GAME_WIDTH } from '../config';
 import { formatTime } from '../core/clock';
+import type { Announcement } from '../core/events';
+import { garble, garbleLevel } from '../core/garble';
 import { clamp } from '../core/math';
+import type { Outcome } from '../core/outcome';
+import { createRng, type Rng } from '../core/rng';
+import { nextStop, type Route } from '../core/route';
 import type { GameSession } from '../core/session';
 import { BALANCE } from '../data/balance';
 import { STR } from '../data/strings.fi';
 import { BusInterior } from '../ui/BusInterior';
 import { Eyelids } from '../ui/Eyelids';
 import { MeterBar } from '../ui/MeterBar';
+import { StopButton } from '../ui/StopButton';
+import { Subtitle } from '../ui/Subtitle';
 import { WindowScenery, type Rect } from '../ui/WindowScenery';
 import { SceneKeys } from './keys';
 import { getRoute, getSession } from './session';
@@ -21,8 +28,13 @@ const Depth = {
   hud: 900,
   hint: 950,
   eyelids: 1000,
+  /** Controls stay usable (and visible) with eyes closed. */
+  controls: 1050,
   blackout: 1100,
 } as const;
+
+/** Real ms between getting off and the result screen. */
+const RESULT_DELAY_MS = 2500;
 
 const LOOK = BALANCE.drowsyLook;
 
@@ -32,7 +44,16 @@ function lerp(a: number, b: number, t: number): number {
 
 export class BusScene extends Phaser.Scene {
   private session!: GameSession;
+  private route!: Route;
   private scenery!: WindowScenery;
+  private subtitle!: Subtitle;
+  private stopButton!: StopButton;
+  /** Garbled stop name currently on the ceiling display. */
+  private displayName: string | null = null;
+  /** Randomness for display flicker, seeded per announcement (core RNG). */
+  private flickerRng: Rng = createRng(0);
+  private flickerMs = 0;
+  private flickerName = '';
   private interior!: BusInterior;
   private eyelids!: Eyelids;
   private fatigueBar!: MeterBar;
@@ -50,6 +71,9 @@ export class BusScene extends Phaser.Scene {
   create(): void {
     this.session = getSession(this);
     const route = getRoute(this);
+    this.route = route;
+    this.displayName = null;
+    this.flickerMs = 0;
 
     this.scenery = new WindowScenery(this, route, WINDOW);
     this.interior = new BusInterior(this, WINDOW, PILLARS_X);
@@ -78,6 +102,11 @@ export class BusScene extends Phaser.Scene {
       .setAlpha(0)
       .setDepth(Depth.blackout + 1);
 
+    this.subtitle = new Subtitle(this, GAME_HEIGHT - 125, Depth.hint);
+    this.stopButton = new StopButton(this, GAME_WIDTH - 70, GAME_HEIGHT - 80, 44, Depth.controls, () =>
+      this.session.handleInput('requestStop'),
+    );
+
     const hint = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT - 60, STR.bus.hint, {
         fontFamily: 'sans-serif',
@@ -90,6 +119,7 @@ export class BusScene extends Phaser.Scene {
       .setDepth(Depth.hint);
     this.tweens.add({ targets: hint, alpha: 0, delay: 6000, duration: 1000, onComplete: () => hint.destroy() });
 
+    this.cameras.main.resetFX();
     this.setUpFilters();
     this.setUpInput();
 
@@ -105,7 +135,8 @@ export class BusScene extends Phaser.Scene {
       bus.on('streetLightPassed', () => this.flashStreetLight()),
       bus.on('microsleep', () => this.fallAsleep()),
       bus.on('wokeUp', () => this.wakeUp()),
-      bus.on('terminusReached', () => this.showTerminus()),
+      bus.on('announcement', (a) => this.announce(a)),
+      bus.on('runEnded', ({ outcome }) => this.endRun(outcome)),
     ];
 
     this.scene.launch(SceneKeys.Debug);
@@ -120,14 +151,26 @@ export class BusScene extends Phaser.Scene {
     // Phaser 4 filters are WebGL-only; on Canvas the eyelids alone carry the effect.
     if (this.renderer.type !== Phaser.WEBGL) return;
     const filters = this.cameras.main.filters.external;
+    filters.clear();
     this.blur = filters.addBlur(0, 1, 1, 0);
     this.vignette = filters.addVignette(0.5, 0.5, LOOK.vignetteRadius.rested, LOOK.vignetteStrength.rested);
   }
 
   private setUpInput(): void {
     const open = () => this.session.handleInput('openEyes');
-    this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE, true).on('down', open);
-    this.input.on(Phaser.Input.Events.POINTER_DOWN, open);
+    const stop = () => {
+      this.stopButton.press(this);
+      this.session.handleInput('requestStop');
+    };
+    const keys = Phaser.Input.Keyboard.KeyCodes;
+    const keyboard = this.input.keyboard;
+    keyboard?.addKey(keys.SPACE, true).on('down', open);
+    keyboard?.addKey(keys.S, true).on('down', stop);
+    keyboard?.addKey(keys.ENTER, true).on('down', stop);
+    // A tap anywhere opens the eyes, except on the stop button.
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
+      if (!over.includes(this.stopButton.hitArea)) open();
+    });
   }
 
   override update(_time: number, delta: number): void {
@@ -143,6 +186,9 @@ export class BusScene extends Phaser.Scene {
     this.eyelids.set(eyelid);
     this.fatigueBar.set(fatigue);
     this.interior.clock.setColor(confusion > 0 ? '#ff8080' : '#cfd8ff');
+    this.interior.setStopping(s.stopRequested);
+    this.stopButton.setLit(s.stopRequested);
+    this.updateDisplay(delta);
 
     if (this.vignette) {
       const r = LOOK.vignetteRadius;
@@ -188,19 +234,48 @@ export class BusScene extends Phaser.Scene {
     this.cameras.main.shake(400, 0.008);
     this.cameras.main.flash(250, 255, 240, 200);
     this.interior.clock.setScale(1.8);
+
+    // The display shows where the bus is now: an unfamiliar stop name.
+    const s = this.session.state;
+    const next = nextStop(this.route, s.ride.offsetSec);
+    if (next) {
+      const level = garbleLevel(s.meters.intoxication.value, s.meters.fatigue.value);
+      const rng = createRng(s.seed + s.drowsiness.microsleeps * 7919);
+      this.displayName = garble(next.name, level * BALANCE.announcements.displayLevelFactor, rng);
+    }
     this.tweens.add({ targets: this.interior.clock, scale: 1, duration: 900, ease: 'Back.easeOut' });
   }
 
-  private showTerminus(): void {
-    this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 110, STR.bus.terminus, {
-        fontFamily: 'sans-serif',
-        fontSize: '26px',
-        color: '#ffffff',
-        backgroundColor: '#000000aa',
-        padding: { x: 14, y: 8 },
-      })
-      .setOrigin(0.5)
-      .setDepth(Depth.hint);
+  private announce(a: Announcement): void {
+    const rng = createRng(a.seed);
+    this.subtitle.show(garble(STR.bus.announcement(a.stopName), a.level, rng), BALANCE.announcements.subtitleMs);
+    this.displayName = garble(a.stopName, a.level * BALANCE.announcements.displayLevelFactor, rng);
+    this.flickerRng = createRng(a.seed ^ 0x5bd1e995);
+    this.flickerMs = 0;
   }
+
+  /** Ceiling display; when drunk it sometimes flashes a wrong stop. */
+  private updateDisplay(deltaMs: number): void {
+    const a = BALANCE.announcements;
+    const intox = this.session.state.meters.intoxication.value;
+    const chance = clamp((intox - a.flickerFromIntox) / (1 - a.flickerFromIntox), 0, 1) * a.flickerPerSec * (deltaMs / 1000);
+    if (this.flickerMs > 0) {
+      this.flickerMs -= deltaMs;
+    } else if (this.displayName && this.flickerRng.next() < chance) {
+      this.flickerMs = a.flickerMs;
+      this.flickerName = this.flickerRng.pick(this.route.stops).name;
+    }
+    const name = this.flickerMs > 0 ? this.flickerName : this.displayName;
+    this.interior.stopDisplay.setText(name ? STR.bus.nextStop(name) : STR.bus.nextStopUnknown);
+  }
+
+  private endRun(outcome: Outcome): void {
+    const alight = this.session.state.alight;
+    const message = outcome.kind === 'terminus' || !alight ? STR.bus.terminus : STR.bus.alighted(alight.stopName);
+    this.subtitle.show(message, 0);
+    const fadeMs = 600;
+    this.time.delayedCall(RESULT_DELAY_MS - fadeMs, () => this.cameras.main.fadeOut(fadeMs));
+    this.time.delayedCall(RESULT_DELAY_MS, () => this.scene.start(SceneKeys.Result));
+  }
+
 }

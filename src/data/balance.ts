@@ -121,6 +121,31 @@ export const BALANCE = {
     /** Route seconds between street lights. */
     spacingRouteSec: 9,
   },
+  announcements: {
+    /** Garble level = intox × intoxWeight + fatigue × fatigueWeight − clearBelow, clamped to 0..1. */
+    intoxWeight: 0.8,
+    fatigueWeight: 0.4,
+    clearBelow: 0.2,
+    /** Reading the display is easier than hearing the speaker. */
+    displayLevelFactor: 0.6,
+    /** Real ms the subtitle stays on screen. */
+    subtitleMs: 4500,
+    /** Display shows a wrong stop briefly when intoxication is above this. */
+    flickerFromIntox: 0.45,
+    /** Chance per real second of a flicker at intoxication 1.0. */
+    flickerPerSec: 0.8,
+    flickerMs: 350,
+    garble: {
+      /** Share of garbled syllables replaced with a filler (the rest lose letters). */
+      replaceShare: 0.5,
+      /** Garble weight of the last syllable relative to the first. */
+      endWeight: 0.35,
+      cutWordChance: 0.35,
+      /** Share of syllables kept when a word is cut. */
+      cutKeepShare: 0.4,
+      fillers: ['mm', 'mmh', 'rrh', 'hh', '…', 'öö', 'nn'],
+    },
+  },
   intoxication: {
     /** Intoxication wears off slowly over time. */
     decayPerMin: 0.003,

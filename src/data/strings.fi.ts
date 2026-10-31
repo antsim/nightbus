@@ -6,9 +6,30 @@ export const STR = {
   },
   bus: {
     nextStopUnknown: 'Seuraava: ???',
-    terminus: 'Päätepysäkki. Kaikki ulos.',
-    hint: 'Pidä silmät auki: välilyönti tai napautus',
+    nextStop: (name: string) => `Seuraava: ${name}`,
+    announcement: (name: string) => `Seuraava pysäkki: ${name}`,
+    terminus: 'Päätepysäkki. Kuski herättää: kaikki ulos.',
+    alighted: (name: string) => `Jäit pois: ${name}`,
+    hint: 'Pidä silmät auki: välilyönti tai napautus. Pysähdys: S, Enter tai punainen nappi.',
     asleep: 'zzz…',
+    stopButton: 'STOP',
+    stopping: 'PYSÄHTYY',
+  },
+  result: {
+    titles: {
+      home: 'Kotona!',
+      tooEarly: 'Liian aikaisin',
+      overshot: 'Ohi meni',
+      terminus: 'Päätepysäkki',
+    },
+    detail: {
+      home: 'Jäit oikealla pysäkillä.',
+      tooEarly: (n: number) => `Jäit ${n} pysäkkiä liian aikaisin.`,
+      overshot: (n: number) => `Ajoit ${n} pysäkkiä yli.`,
+      terminus: (n: number) => `Nukuit päätepysäkille asti, ${n} pysäkkiä kodin ohi.`,
+    },
+    alightedAt: (stop: string, time: string) => `${stop} klo ${time}`,
+    again: 'Napauta aloittaaksesi uudelleen',
   },
   hud: {
     fatigue: 'Väsymys',

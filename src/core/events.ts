@@ -1,4 +1,5 @@
 import type { ActiveModifier, MeterId } from './meters';
+import type { AlightInfo, Outcome } from './outcome';
 
 export type StopEvent = { stopId: string; stopIndex: number };
 
@@ -18,7 +19,14 @@ export type GameEvents = {
   waveStarted: { depth: number };
   streetLightPassed: Record<string, never>;
   jolt: { source: 'brake' | 'streetLight'; amount: number };
+  stopRequested: { atOffsetSec: number };
+  announcement: Announcement;
+  alighted: { alight: AlightInfo; outcome: Outcome };
+  runEnded: { outcome: Outcome };
 };
+
+/** A stop announcement. The view garbles the text with `createRng(seed)` at `level`. */
+export type Announcement = { stopId: string; stopName: string; level: number; seed: number };
 
 export type GameEventName = keyof GameEvents;
 

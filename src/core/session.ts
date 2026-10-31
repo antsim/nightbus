@@ -10,13 +10,15 @@ import {
 } from './drowsiness';
 import { gameMinutesFor } from './clock';
 import { EventBus, type GameEventName, type GameEvents } from './events';
+import { garbleLevel } from './garble';
 import { addModifier, setMeterValue, updateMeters, type MeterId, type Modifier } from './meters';
 import { rngFrom, type Rng } from './rng';
 import type { Route } from './route';
+import { resolveOutcome, type Outcome } from './outcome';
 import { createRun, type LogEntry, type RunInit, type RunState } from './runState';
 
 /** Player actions. More (e.g. browsing the phone) will be added later. */
-export type PlayerAction = 'openEyes';
+export type PlayerAction = 'openEyes' | 'requestStop';
 
 /** Owns the state of one run and advances it in fixed steps. Passed between scenes. */
 export class GameSession {
@@ -60,6 +62,8 @@ export class GameSession {
     this.previousOffsetSec = s.ride.offsetSec;
     this.previousEyelid = s.drowsiness.eyelid;
 
+    if (s.outcome) return;
+
     // During a microsleep's blackout the skipped time has already been applied.
     if (s.drowsiness.phase === 'asleep') {
       const sleep = updateSleep(s.drowsiness, realMs);
@@ -94,6 +98,7 @@ export class GameSession {
     s.ride = ride.ride;
 
     for (const { type, stopId, stopIndex } of ride.events) {
+      if (s.outcome) break;
       const payload = { stopId, stopIndex };
       if (asleep) {
         if (type === 'stopReached') this.record('stopMissedWhileAsleep', payload);
@@ -103,7 +108,16 @@ export class GameSession {
         this.record(type, payload);
       } else {
         this.bus.emit(type, payload);
+        if (type === 'stopApproaching') this.announce(stopIndex);
       }
+
+      if (type === 'stopReached') {
+        // The bus stops here; a pending request lets the player off if they are awake.
+        const getsOff = s.stopRequested && !asleep;
+        s.stopRequested = false;
+        if (getsOff) this.alight(stopIndex);
+      }
+      if (type === 'terminusReached' && !s.outcome) this.alight(stopIndex);
     }
 
     if (!asleep) {
@@ -149,6 +163,40 @@ export class GameSession {
     this.record('microsleep', { startMin, durationMin, stopsMissed });
   }
 
+  private announce(stopIndex: number): void {
+    const stop = this.route?.stops[stopIndex];
+    if (!stop) return;
+    const m = this.state.meters;
+    const announcement = {
+      stopId: stop.id,
+      stopName: stop.name,
+      level: garbleLevel(m.intoxication.value, m.fatigue.value),
+      seed: this.rng.int(0, 0x7fffffff),
+    };
+    this.state.announcement = announcement;
+    this.bus.emit('announcement', announcement);
+  }
+
+  /** Player leaves the bus at this stop; the run ends with an outcome. */
+  private alight(stopIndex: number): void {
+    const stop = this.route?.stops[stopIndex];
+    if (!stop || !this.route) return;
+    const s = this.state;
+    const outcome = resolveOutcome(this.route, stop.id);
+    const alight = {
+      stopId: stop.id,
+      stopName: stop.name,
+      stopIndex,
+      lat: stop.lat,
+      lon: stop.lon,
+      timeMin: s.clock.minutes,
+    };
+    s.alight = alight;
+    s.outcome = outcome;
+    this.record('alighted', { alight, outcome });
+    this.bus.emit('runEnded', { outcome });
+  }
+
   /** Debug/testing: set a meter directly (F3). */
   setMeter(id: MeterId, value: number): void {
     this.state.meters = { ...this.state.meters, [id]: setMeterValue(this.state.meters[id], value) };
@@ -162,7 +210,18 @@ export class GameSession {
         this.state.drowsiness = openEyes(d, d.elapsedMs + this.accumulatorMs);
         this.previousEyelid = Math.min(this.previousEyelid, this.state.drowsiness.eyelid);
         break;
+      case 'requestStop':
+        this.requestStop();
+        break;
     }
+  }
+
+  /** Stop button: the bus stops at the next stop. Does nothing while asleep or once requested. */
+  private requestStop(): void {
+    const s = this.state;
+    if (s.outcome || s.stopRequested || s.drowsiness.phase !== 'awake' || s.ride.phase === 'finished') return;
+    s.stopRequested = true;
+    this.record('stopRequested', { atOffsetSec: s.ride.offsetSec });
   }
 
   /** Eyelid interpolated between the last two steps, for rendering. */
@@ -177,8 +236,13 @@ export class GameSession {
     return this.previousOffsetSec + (this.state.ride.offsetSec - this.previousOffsetSec) * alpha;
   }
 
+  /** The run is over: the player got off or the bus reached the terminus. */
   get finished(): boolean {
-    return this.state.ride.phase === 'finished';
+    return this.state.outcome !== null || this.state.ride.phase === 'finished';
+  }
+
+  get outcome(): Outcome | null {
+    return this.state.outcome;
   }
 
   /** Simulates `minutes` of game time (tests, microsleep skips). */

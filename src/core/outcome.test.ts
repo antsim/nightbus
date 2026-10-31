@@ -1,0 +1,123 @@
+import { describe, expect, it } from 'vitest';
+import { BALANCE } from '../data/balance';
+import routeData from '../data/routes/bus-nro6.json';
+import { resolveOutcome } from './outcome';
+import { homeStop, parseRoute } from './route';
+import { GameSession } from './session';
+
+const route = parseRoute(routeData);
+const STEP = BALANCE.time.stepMs;
+const homeIndex = route.stops.findIndex((s) => s.isHome);
+const idAt = (i: number) => route.stops[i]!.id;
+
+describe('resolveOutcome', () => {
+  it('home', () => expect(resolveOutcome(route, homeStop(route).id)).toEqual({ kind: 'home' }));
+  it('tooEarly counts stops', () => expect(resolveOutcome(route, idAt(homeIndex - 3))).toEqual({ kind: 'tooEarly', stops: 3 }));
+  it('overshot counts stops', () => expect(resolveOutcome(route, idAt(homeIndex + 2))).toEqual({ kind: 'overshot', stops: 2 }));
+  it('terminus', () =>
+    expect(resolveOutcome(route, idAt(route.stops.length - 1))).toEqual({
+      kind: 'terminus',
+      stops: route.stops.length - 1 - homeIndex,
+    }));
+  it('rejects unknown stops', () => expect(() => resolveOutcome(route, 'nope')).toThrow());
+});
+
+/** Plays awake (pressing openEyes often) and presses the stop button once the bus has left `afterStopIndex`. */
+function playAndRequestAfter(afterStopIndex: number | null, seed = 1) {
+  const session = GameSession.start({ seed }, route);
+  let ms = 0;
+  while (!session.finished && ms < 10 * 60_000) {
+    session.step(STEP);
+    ms += STEP;
+    if (ms % 400 === 0) session.handleInput('openEyes');
+    const r = session.state.ride;
+    if (afterStopIndex !== null && r.stopIndex === afterStopIndex && r.phase !== 'dwelling') {
+      session.handleInput('requestStop');
+    }
+  }
+  return session;
+}
+
+describe('stop button and outcomes in play', () => {
+  it('gets off at home when pressed after the previous stop', () => {
+    const s = playAndRequestAfter(homeIndex - 1);
+    expect(s.outcome).toEqual({ kind: 'home' });
+    expect(s.state.alight?.stopId).toBe(homeStop(route).id);
+    expect(s.state.alight?.lat).toBe(homeStop(route).lat);
+    expect(s.state.log.some((e) => e.type === 'alighted')).toBe(true);
+  });
+
+  it('too early', () => {
+    expect(playAndRequestAfter(homeIndex - 3)?.outcome).toEqual({ kind: 'tooEarly', stops: 2 });
+  });
+
+  it('overshot', () => {
+    expect(playAndRequestAfter(homeIndex + 1)?.outcome).toEqual({ kind: 'overshot', stops: 2 });
+  });
+
+  it('terminus when never pressed', () => {
+    const s = playAndRequestAfter(null);
+    expect(s.outcome?.kind).toBe('terminus');
+    expect(s.state.alight?.stopIndex).toBe(route.stops.length - 1);
+  });
+
+  it('ends the run: no further time passes', () => {
+    const s = playAndRequestAfter(homeIndex - 1);
+    const t = s.state.clock.minutes;
+    for (let i = 0; i < 50; i++) s.step(STEP);
+    expect(s.state.clock.minutes).toBe(t);
+  });
+
+  it('request is a state that resets when the bus stops', () => {
+    const s = GameSession.start({ seed: 1 }, route);
+    while (s.state.ride.phase === 'dwelling') s.step(STEP);
+    s.handleInput('requestStop');
+    expect(s.state.stopRequested).toBe(true);
+    s.handleInput('requestStop'); // second press is ignored
+    expect(s.state.log.filter((e) => e.type === 'stopRequested')).toHaveLength(1);
+    while (!s.finished) {
+      s.step(STEP);
+      s.handleInput('openEyes');
+    }
+    expect(s.state.stopRequested).toBe(false);
+    expect(s.outcome).toEqual({ kind: 'tooEarly', stops: homeIndex - 1 });
+  });
+
+  it('does nothing during a microsleep', () => {
+    const s = GameSession.start({ seed: 7, fatigue: 0.95 }, route);
+    while (s.state.drowsiness.phase !== 'asleep') s.step(STEP);
+    s.handleInput('requestStop');
+    expect(s.state.stopRequested).toBe(false);
+  });
+
+  it('a request is lost if the bus stops while you sleep', () => {
+    const s = GameSession.start({ seed: 7, fatigue: 0.95 }, route);
+    while (s.state.ride.phase === 'dwelling') s.step(STEP);
+    s.handleInput('requestStop');
+    while (s.state.drowsiness.microsleeps === 0 && !s.finished) s.step(STEP);
+    const missed = s.state.log.filter((e) => e.type === 'stopMissedWhileAsleep');
+    if (missed.length > 0) {
+      expect(s.state.stopRequested).toBe(false);
+      expect(s.state.alight).toBeNull();
+    }
+  });
+});
+
+describe('announcements', () => {
+  it('announces every stop with a garble level from intoxication', () => {
+    const sober = GameSession.start({ seed: 1, intoxication: 0.1, timeScale: 6 }, route);
+    const drunk = GameSession.start({ seed: 1, intoxication: 0.95, timeScale: 6 }, route);
+    const levels = { sober: [] as number[], drunk: [] as number[] };
+    sober.bus.on('announcement', (a) => levels.sober.push(a.level));
+    drunk.bus.on('announcement', (a) => levels.drunk.push(a.level));
+    for (let i = 0; i < 400; i++) {
+      sober.step(STEP);
+      drunk.step(STEP);
+      sober.handleInput('openEyes');
+      drunk.handleInput('openEyes');
+    }
+    expect(levels.sober.length).toBeGreaterThan(3);
+    expect(levels.drunk[0]!).toBeGreaterThan(levels.sober[0]! + 0.3);
+    expect(sober.state.announcement?.stopName).toBeTruthy();
+  });
+});
