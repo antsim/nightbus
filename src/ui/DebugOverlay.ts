@@ -91,12 +91,14 @@ export class DebugOverlay {
     const route = this.route;
     if (!route) return [];
     const d = STR.debug;
-    const offset = this.session.state.route.offsetSec;
+    const ride = this.session.state.ride;
+    const offset = ride.offsetSec;
     const next = nextStop(route, offset);
     const home = homeStop(route);
     return [
       `${d.route}: ${route.lineName} ${route.headsign} (${route.id})`,
-      `${d.position}: ${offset.toFixed(0)} s`,
+      `${d.position}: ${offset.toFixed(1)} s`,
+      `${d.busPhase}: ${ride.phase} (${ride.timeInPhaseSec.toFixed(1)} s), ${d.speed} ${ride.speed.toFixed(2)}`,
       `${d.nextStop}: ${next ? `${next.name} @ ${next.offsetSec} s` : d.none}`,
       `${d.home}: ${home.name} @ ${home.offsetSec} s`,
     ];

@@ -51,5 +51,10 @@ joten rikkinäinen reitti ei mene testeistä läpi.
 
 ## Pelin aika-akseli
 
-Koko reitti kestää pelissä noin `päätepysäkin offsetSec / 60 / BALANCE.time.timeScale` oikeaa sekuntia
-(esimerkkireitti: 1320 s = 22 pelin minuuttia ≈ 3,7 min oikeaa aikaa).
+`offsetSec` on aikataulun mukainen aika. Pelissä bussi ajaa nopeudella `BALANCE.bus.cruiseSpeed`
+(reittisekuntia pelisekunnissa), kiihdyttää ja jarruttaa sekä seisoo jokaisella pysäkillä
+`BALANCE.bus.dwellSec` pelisekuntia. Pelikello etenee `BALANCE.time.timeScale` pelin minuuttia oikeassa sekunnissa.
+
+Esimerkki: linja 6 (`bus-nro6`, aikataulussa 29 min) kestää pelissä noin 30 pelin minuuttia, mikä on
+aikakertoimella 0,14 noin 3,6 minuuttia oikeaa aikaa. Testi `busRide.test.ts` varmistaa, että oletusreitti
+pysyy 3–4 minuutissa.

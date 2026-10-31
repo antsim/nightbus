@@ -1,11 +1,17 @@
 import type { ActiveModifier, MeterId } from './meters';
 
+export type StopEvent = { stopId: string; stopIndex: number };
+
 /** All game events and their payloads. Payloads must be plain JSON data. */
 export type GameEvents = {
   runStarted: { seed: number; routeId: string };
   modifierAdded: { modifier: ActiveModifier };
   modifierExpired: { id: string; meter: MeterId };
   timeScaleChanged: { timeScale: number };
+  stopApproaching: StopEvent;
+  stopReached: StopEvent;
+  stopDeparted: StopEvent;
+  terminusReached: StopEvent;
 };
 
 export type GameEventName = keyof GameEvents;

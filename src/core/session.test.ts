@@ -4,7 +4,7 @@ import { formatTime } from './clock';
 import { GameSession } from './session';
 
 const start = (intoxication: number) =>
-  GameSession.start({ seed: 1, intoxication, fatigue: 0.2, startTime: '02:10' });
+  GameSession.start({ seed: 1, intoxication, fatigue: 0.2, startTime: '02:10', timeScale: 6 });
 
 describe('GameSession', () => {
   it('advances in fixed steps regardless of frame rate', () => {
@@ -20,7 +20,7 @@ describe('GameSession', () => {
   it('caps very long frames', () => {
     const session = start(0.5);
     session.tick(60_000);
-    const maxMin = (BALANCE.time.maxFrameMs / 1000) * BALANCE.time.timeScale;
+    const maxMin = (BALANCE.time.maxFrameMs / 1000) * session.state.clock.timeScale;
     expect(session.state.clock.minutes - 130).toBeLessThanOrEqual(maxMin);
   });
 

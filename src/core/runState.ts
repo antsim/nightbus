@@ -1,4 +1,5 @@
 import { BALANCE } from '../data/balance';
+import { createRide, type BusRideState } from './busRide';
 import { createClock, type ClockState } from './clock';
 import type { GameEventName, GameEvents } from './events';
 import { createMeters, type ActiveModifier, type Meters } from './meters';
@@ -8,12 +9,6 @@ import { seedToState } from './rng';
 export type LogEntry = {
   [K in GameEventName]: { time: number; type: K; data: GameEvents[K] };
 }[GameEventName];
-
-export interface RoutePosition {
-  routeId: string;
-  /** Seconds from the start of the route. */
-  offsetSec: number;
-}
 
 /** Complete state of one run. Plain JSON data only, so it can be saved and restored. */
 export interface RunState {
@@ -25,7 +20,7 @@ export interface RunState {
   /** Euro cents. */
   money: number;
   modifiers: ActiveModifier[];
-  route: RoutePosition;
+  ride: BusRideState;
   log: LogEntry[];
 }
 
@@ -54,7 +49,7 @@ export function createRun(init: RunInit): RunState {
     }),
     money: Math.round(init.money ?? start.money),
     modifiers: [],
-    route: { routeId: init.routeId ?? start.routeId, offsetSec: 0 },
+    ride: createRide(init.routeId ?? start.routeId),
     log: [],
   };
 }

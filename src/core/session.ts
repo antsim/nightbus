@@ -1,8 +1,10 @@
 import { BALANCE } from '../data/balance';
+import { stepRide } from './busRide';
 import { advanceClock, gameMinutesFor } from './clock';
 import { EventBus, type GameEventName, type GameEvents } from './events';
 import { addModifier, updateMeters, type Modifier } from './meters';
 import { rngFrom, type Rng } from './rng';
+import type { Route } from './route';
 import { createRun, type LogEntry, type RunInit, type RunState } from './runState';
 
 /** Owns the state of one run and advances it in fixed steps. Passed between scenes. */
@@ -10,14 +12,23 @@ export class GameSession {
   readonly bus = new EventBus<GameEvents>();
   readonly rng: Rng;
   private accumulatorMs = 0;
+  /** Ride offset before the latest step, for smooth rendering between steps. */
+  private previousOffsetSec: number;
 
-  constructor(readonly state: RunState) {
+  /** Without a route the bus doesn't move (e.g. pure meter tests, future walking phase). */
+  constructor(
+    readonly state: RunState,
+    readonly route?: Route,
+  ) {
     this.rng = rngFrom(state);
+    this.previousOffsetSec = state.ride.offsetSec;
   }
 
-  static start(init: RunInit): GameSession {
-    const session = new GameSession(createRun(init));
-    session.record('runStarted', { seed: init.seed, routeId: session.state.route.routeId });
+  static start(init: RunInit, route?: Route): GameSession {
+    const run = createRun(route ? { ...init, routeId: route.id } : init);
+    if (route?.stops[0]) run.ride.offsetSec = route.stops[0].offsetSec;
+    const session = new GameSession(run, route);
+    session.record('runStarted', { seed: init.seed, routeId: run.ride.routeId });
     return session;
   }
 
@@ -40,6 +51,28 @@ export class GameSession {
     s.meters = result.meters;
     s.modifiers = result.modifiers;
     for (const mod of result.expired) this.record('modifierExpired', { id: mod.id, meter: mod.meter });
+
+    this.previousOffsetSec = s.ride.offsetSec;
+    if (this.route) {
+      const ride = stepRide(s.ride, this.route, dtMin * 60);
+      s.ride = ride.ride;
+      for (const { type, stopId, stopIndex } of ride.events) {
+        const payload = { stopId, stopIndex };
+        // Arrivals are significant for the report; approach/departure are only notifications.
+        if (type === 'stopReached' || type === 'terminusReached') this.record(type, payload);
+        else this.bus.emit(type, payload);
+      }
+    }
+  }
+
+  /** Ride offset interpolated between the last two steps, for rendering. */
+  renderOffsetSec(): number {
+    const alpha = this.accumulatorMs / BALANCE.time.stepMs;
+    return this.previousOffsetSec + (this.state.ride.offsetSec - this.previousOffsetSec) * alpha;
+  }
+
+  get finished(): boolean {
+    return this.state.ride.phase === 'finished';
   }
 
   /** Simulates `minutes` of game time (tests, microsleep skips). */
@@ -70,7 +103,7 @@ export class GameSession {
     return this.state;
   }
 
-  static fromJSON(json: string): GameSession {
-    return new GameSession(JSON.parse(json) as RunState);
+  static fromJSON(json: string, route?: Route): GameSession {
+    return new GameSession(JSON.parse(json) as RunState, route);
   }
 }

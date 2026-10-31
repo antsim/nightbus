@@ -5,7 +5,8 @@ export const STR = {
     routeError: 'Reitin lataus epäonnistui.',
   },
   bus: {
-    arriving: 'Bussi tulossa…',
+    nextStopUnknown: 'Seuraava: ???',
+    terminus: 'Päätepysäkki. Kaikki ulos.',
   },
   debug: {
     title: 'DEBUG (F1 piilota, F2 nopeus)',
@@ -22,7 +23,9 @@ export const STR = {
     permanent: 'pysyvä',
     logEntries: 'Lokirivejä',
     route: 'Reitti',
-    position: 'Sijainti',
+    position: 'offsetSec',
+    busPhase: 'Bussi',
+    speed: 'nopeus',
     nextStop: 'Seuraava',
     home: 'Koti',
   },
