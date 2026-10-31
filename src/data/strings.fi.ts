@@ -6,4 +6,19 @@ export const STR = {
   bus: {
     arriving: 'Bussi tulossa…',
   },
+  debug: {
+    title: 'DEBUG (F1 piilota, F2 nopeus)',
+    clock: 'Kello',
+    timeScale: 'Aikakerroin',
+    timeScaleUnit: 'min/s',
+    seed: 'Siemen',
+    intoxication: 'Humala',
+    fatigue: 'Väsymys',
+    cold: 'Kylmä',
+    money: 'Rahat',
+    modifiers: 'Modifierit',
+    none: '–',
+    permanent: 'pysyvä',
+    logEntries: 'Lokirivejä',
+  },
 } as const;

@@ -38,8 +38,7 @@ ja loppuraportin, mutta arkkitehtuurin pitää kantaa koko peli.
 - `npm run lint` – ESLint + tsc --noEmit
 
 ## Taskit
-- Taskikuvaukset ovat repon ulkopuolella: `../docs/tasks/T0X-*.md`. Toteuta yksi task kerrallaan
-  ja noudata sen hyväksymiskriteerejä.
+- Taskikuvaukset: `docs/tasks/T0X-*.md`. Toteuta yksi task kerrallaan ja noudata sen hyväksymiskriteerejä.
 
 ## Valmiin määritelmä
 - `npm run lint` ja `npm test` menevät läpi.
