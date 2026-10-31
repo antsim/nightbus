@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { formatTime } from '../core/clock';
 import { METER_IDS } from '../core/meters';
 import { formatEuros } from '../core/money';
+import { homeStop, nextStop, type Route } from '../core/route';
 import type { GameSession } from '../core/session';
 import { BALANCE } from '../data/balance';
 import { STR } from '../data/strings.fi';
@@ -24,6 +25,7 @@ export class DebugOverlay {
   constructor(
     scene: Phaser.Scene,
     private readonly session: GameSession,
+    private readonly route?: Route,
   ) {
     this.text = scene.add
       .text(8, 8, '', {
@@ -81,6 +83,22 @@ export class DebugOverlay {
       `${d.modifiers}:${mods.length === 0 ? ' ' + d.none : ''}`,
       ...mods,
       `${d.logEntries}: ${s.log.length}`,
+      ...this.routeLines(),
     ]);
+  }
+
+  private routeLines(): string[] {
+    const route = this.route;
+    if (!route) return [];
+    const d = STR.debug;
+    const offset = this.session.state.route.offsetSec;
+    const next = nextStop(route, offset);
+    const home = homeStop(route);
+    return [
+      `${d.route}: ${route.lineName} ${route.headsign} (${route.id})`,
+      `${d.position}: ${offset.toFixed(0)} s`,
+      `${d.nextStop}: ${next ? `${next.name} @ ${next.offsetSec} s` : d.none}`,
+      `${d.home}: ${home.name} @ ${home.offsetSec} s`,
+    ];
   }
 }

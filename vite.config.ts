@@ -6,7 +6,7 @@ const PAGES_BASE = '/nightbus/';
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? PAGES_BASE : '/',
   build: {
-    target: 'es2022',
+    target: 'es2023',
     // Phaser alone is ~1.5 MB minified; don't warn about it.
     chunkSizeWarningLimit: 2000,
   },

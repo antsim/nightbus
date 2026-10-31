@@ -2,6 +2,7 @@
 export const STR = {
   boot: {
     loading: 'Ladataan…',
+    routeError: 'Reitin lataus epäonnistui.',
   },
   bus: {
     arriving: 'Bussi tulossa…',
@@ -20,5 +21,9 @@ export const STR = {
     none: '–',
     permanent: 'pysyvä',
     logEntries: 'Lokirivejä',
+    route: 'Reitti',
+    position: 'Sijainti',
+    nextStop: 'Seuraava',
+    home: 'Koti',
   },
 } as const;

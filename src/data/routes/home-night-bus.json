@@ -1,0 +1,152 @@
+{
+  "id": "home-night-bus",
+  "lineName": "N55",
+  "headsign": "Metsälä",
+  "stops": [
+    {
+      "id": "local:keskustori",
+      "name": "Keskustori",
+      "lat": 60.1699,
+      "lon": 24.9384,
+      "offsetSec": 0
+    },
+    {
+      "id": "local:kauppahalli",
+      "name": "Kauppahalli",
+      "lat": 60.1741,
+      "lon": 24.9445,
+      "offsetSec": 90
+    },
+    {
+      "id": "local:puistokatu",
+      "name": "Puistokatu",
+      "lat": 60.1783,
+      "lon": 24.9506,
+      "offsetSec": 170
+    },
+    {
+      "id": "local:sillanpaa",
+      "name": "Sillanpää",
+      "lat": 60.1825,
+      "lon": 24.9567,
+      "offsetSec": 260
+    },
+    {
+      "id": "local:teollisuuskatu",
+      "name": "Teollisuuskatu",
+      "lat": 60.1867,
+      "lon": 24.9628,
+      "offsetSec": 350
+    },
+    {
+      "id": "local:vanha-meijeri",
+      "name": "Vanha meijeri",
+      "lat": 60.1909,
+      "lon": 24.9689,
+      "offsetSec": 440
+    },
+    {
+      "id": "local:koivukuja",
+      "name": "Koivukuja",
+      "lat": 60.1951,
+      "lon": 24.975,
+      "offsetSec": 530
+    },
+    {
+      "id": "local:kirkonkyla",
+      "name": "Kirkonkylä",
+      "lat": 60.1993,
+      "lon": 24.9811,
+      "offsetSec": 610
+    },
+    {
+      "id": "local:tehtaanportti",
+      "name": "Tehtaanportti",
+      "lat": 60.2035,
+      "lon": 24.9872,
+      "offsetSec": 700
+    },
+    {
+      "id": "local:kuusitie",
+      "name": "Kuusitie",
+      "lat": 60.2077,
+      "lon": 24.9933,
+      "offsetSec": 800
+    },
+    {
+      "id": "local:kotikatu",
+      "name": "Kotikatu",
+      "lat": 60.2119,
+      "lon": 24.9994,
+      "offsetSec": 890,
+      "isHome": true
+    },
+    {
+      "id": "local:pallokentta",
+      "name": "Pallokenttä",
+      "lat": 60.2161,
+      "lon": 25.0055,
+      "offsetSec": 980
+    },
+    {
+      "id": "local:ylamaki",
+      "name": "Ylämäki",
+      "lat": 60.2203,
+      "lon": 25.0116,
+      "offsetSec": 1080
+    },
+    {
+      "id": "local:varikko",
+      "name": "Varikko",
+      "lat": 60.2245,
+      "lon": 25.0177,
+      "offsetSec": 1190
+    },
+    {
+      "id": "local:metsala",
+      "name": "Metsälä",
+      "lat": 60.2287,
+      "lon": 25.0238,
+      "offsetSec": 1320,
+      "isTerminus": true
+    }
+  ],
+  "landmarks": [
+    {
+      "id": "gas-station",
+      "name": "Huoltoasema",
+      "sprite": "landmark-gas-station",
+      "atOffsetSec": 140,
+      "side": "left"
+    },
+    {
+      "id": "kebab",
+      "name": "Grilli Yön Kuningas",
+      "sprite": "landmark-kebab",
+      "atOffsetSec": 480,
+      "side": "right"
+    },
+    {
+      "id": "church",
+      "name": "Kirkon torni",
+      "sprite": "landmark-church",
+      "atOffsetSec": 640,
+      "side": "left"
+    },
+    {
+      "id": "water-tower",
+      "name": "Vihreä vesitorni",
+      "sprite": "landmark-water-tower",
+      "atOffsetSec": 850,
+      "side": "right",
+      "hintForStopId": "local:kotikatu"
+    },
+    {
+      "id": "depot",
+      "name": "Bussivarikko",
+      "sprite": "landmark-depot",
+      "atOffsetSec": 1150,
+      "side": "left"
+    }
+  ]
+}

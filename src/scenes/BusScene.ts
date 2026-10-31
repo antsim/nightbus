@@ -4,7 +4,7 @@ import type { GameSession } from '../core/session';
 import { STR } from '../data/strings.fi';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { SceneKeys } from './keys';
-import { getSession } from './session';
+import { getRoute, getSession } from './session';
 
 export class BusScene extends Phaser.Scene {
   private session!: GameSession;
@@ -20,7 +20,7 @@ export class BusScene extends Phaser.Scene {
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, STR.bus.arriving, { fontSize: '32px', color: '#ffd166' })
       .setOrigin(0.5);
 
-    new DebugOverlay(this, this.session);
+    new DebugOverlay(this, this.session, getRoute(this));
   }
 
   override update(_time: number, delta: number): void {
