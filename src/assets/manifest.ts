@@ -25,4 +25,6 @@ export const TextureKeys = {
 /** Sound keys. Sounds without a file are silently skipped. */
 export const SoundKeys = {
   engine: 'sfx-engine',
+  /** Queasy warning (nausea stage 2). */
+  urp: 'sfx-urp',
 } as const;

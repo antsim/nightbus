@@ -5,7 +5,7 @@ const STORAGE_KEY = 'yobussi.v1.best';
 
 const BestScoreSchema = z.object({
   score: z.number(),
-  outcome: z.enum(['home', 'tooEarly', 'overshot', 'terminus']),
+  outcome: z.enum(['home', 'tooEarly', 'overshot', 'terminus', 'sick']),
   seed: z.number(),
   routeId: z.string(),
   /** ISO date string. */

@@ -22,6 +22,8 @@ export type GameEvents = {
   streetLightPassed: Record<string, never>;
   jolt: { source: 'brake' | 'streetLight'; amount: number };
   stopRequested: { atOffsetSec: number };
+  /** Nausea hit the limit: a forced stop request. */
+  nauseaCritical: { atOffsetSec: number };
   announcement: Announcement;
   alighted: { alight: AlightInfo; outcome: Outcome };
   runEnded: { outcome: Outcome };

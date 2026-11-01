@@ -54,6 +54,8 @@ function scoreLabel(item: ScoreItem): string {
       return s.awake(item.minutes);
     case 'microsleeps':
       return s.microsleeps(item.count);
+    case 'sickFee':
+      return s.sickFee;
   }
 }
 
@@ -74,6 +76,7 @@ export function receiptLines(report: RunReport, date: string): { top: string[]; 
         : '0',
     ),
     row(R.stopsMissed, R.stopsUnit(report.stopsMissed)),
+    row(R.longestShut, R.seconds(decimal(report.longestEyesShutSec))),
     dashes,
     ...report.scoreItems.map((item) => row(scoreLabel(item), String(item.points))),
     '='.repeat(COLS),

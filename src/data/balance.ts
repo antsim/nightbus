@@ -123,6 +123,15 @@ export const BALANCE = {
     blurMax: 0.8,
     blurPerEyelid: 0.5,
     confusionBlur: 2,
+    /** Nausea: camera sway from the `sway` stage (scaled up to 1.0), green tint from `queasy`. */
+    nausea: {
+      swayRadians: 0.035,
+      swayPx: 14,
+      /** Sway cycles per real second (rotation; sideways drift is slower). */
+      swayHz: 0.35,
+      tintColor: 0x6fbf3f,
+      tintMaxAlpha: 0.28,
+    },
     /** Startle feedback: a small camera jerk and a quiver of the eyelids. */
     startle: { shakeMs: 140, shakeIntensity: 0.006, flutterAmount: 0.07, flutterMs: 300 },
   },
@@ -169,6 +178,8 @@ export const BALANCE = {
     terminusPenalty: 200,
     awakeBonusPerMin: 10,
     microsleepPenalty: 50,
+    /** Forced off the bus by nausea. */
+    sickPenalty: 250,
     /** Humorous lines on the receipt. */
     maxLines: 3,
   },
@@ -181,6 +192,19 @@ export const BALANCE = {
     /** Extra fatigue per minute at intoxication 1.0. */
     perIntoxPerMin: 0.01,
   },
+  nausea: {
+    /** Eyes open in a moving bus, scaled by how open the eyes are (1 − eyelid). */
+    openBasePerMin: 0.04,
+    openPerIntoxPerMin: 0.15,
+    /** Extra while the bus accelerates or brakes, also scaled by (1 − eyelid). */
+    motionPerMin: 0.15,
+    /** Eyes this closed (or asleep) give relief. */
+    closedRelief: { threshold: 0.7, perMin: 0.6 },
+    /** Recovery while the bus stands still, eyes open or not. */
+    stillPerMin: 0.03,
+    /** Warning stages: camera sway from `sway`, green tint and a subtitle from `queasy`. */
+    warn: { sway: 0.6, queasy: 0.8 },
+  },
   cold: {
     /** Inside the bus it is warm; outdoor phases add cold via modifiers. */
     basePerMin: 0,
@@ -189,6 +213,7 @@ export const BALANCE = {
     intoxication: 0.6,
     fatigue: 0.5,
     cold: 0,
+    nausea: 0,
     /** Euro cents. */
     money: 2500,
     time: '02:10',

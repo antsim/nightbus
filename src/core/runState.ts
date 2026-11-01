@@ -26,6 +26,8 @@ export interface RunState {
   drowsiness: DrowsinessState;
   /** Stop button pressed; cleared whenever the bus stops. */
   stopRequested: boolean;
+  /** Nausea hit the limit: the player gets off at the next stop, even asleep. */
+  sick: boolean;
   /** Latest stop announcement. */
   announcement: Announcement | null;
   outcome: Outcome | null;
@@ -38,6 +40,7 @@ export interface RunInit {
   intoxication?: number;
   fatigue?: number;
   cold?: number;
+  nausea?: number;
   money?: number;
   startTime?: string;
   routeId?: string;
@@ -58,12 +61,14 @@ export function createRun(init: RunInit): RunState {
       intoxication: init.intoxication ?? start.intoxication,
       fatigue,
       cold: init.cold ?? start.cold,
+      nausea: init.nausea ?? start.nausea,
     }),
     money: Math.round(init.money ?? start.money),
     modifiers: [],
     ride: createRide(init.routeId ?? start.routeId),
     drowsiness,
     stopRequested: false,
+    sick: false,
     announcement: null,
     outcome: null,
     alight: null,

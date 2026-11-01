@@ -15,7 +15,7 @@ import { appEvents } from '../services/appEvents';
 import { isPaused } from '../services/lifecycle';
 import { keepScreenOn } from '../services/wakeLock';
 import { BusInterior } from '../ui/BusInterior';
-import { Eyelids } from '../ui/Eyelids';
+import { Eyelids, OVERSCAN } from '../ui/Eyelids';
 import { MeterBar } from '../ui/MeterBar';
 import { StopButton } from '../ui/StopButton';
 import { Subtitle } from '../ui/Subtitle';
@@ -30,6 +30,7 @@ const Depth = {
   windowGlow: 500,
   hud: 900,
   hint: 950,
+  tint: 980,
   eyelids: 1000,
   /** Controls stay usable (and visible) with eyes closed. */
   controls: 1050,
@@ -60,6 +61,10 @@ export class BusScene extends Phaser.Scene {
   private interior!: BusInterior;
   private eyelids!: Eyelids;
   private fatigueBar!: MeterBar;
+  private nauseaBar!: MeterBar;
+  private nauseaTint!: Phaser.GameObjects.Rectangle;
+  /** Queasy subtitle shown; re-armed once nausea drops below the sway stage. */
+  private queasyShown = false;
   private blackout!: Phaser.GameObjects.Rectangle;
   private asleepText!: Phaser.GameObjects.Text;
   private windowGlow!: Phaser.GameObjects.Rectangle;
@@ -87,15 +92,30 @@ export class BusScene extends Phaser.Scene {
 
     this.fatigueBar = new MeterBar(
       this,
-      GAME_WIDTH / 2 - 40,
-      GAME_HEIGHT - 18,
+      GAME_WIDTH / 2 - 150,
+      GAME_HEIGHT - 26,
       STR.hud.fatigue,
-      { width: 120, height: 6, lowColor: 0x8fa8ff, highColor: 0xff6b6b },
+      { width: 120, height: 10, lowColor: 0x8fa8ff, highColor: 0xff6b6b },
       Depth.hud,
     );
+    this.nauseaBar = new MeterBar(
+      this,
+      GAME_WIDTH / 2 + 90,
+      GAME_HEIGHT - 26,
+      STR.hud.nausea,
+      { width: 120, height: 10, lowColor: 0xd8d0a0, highColor: 0x5fd03a },
+      Depth.hud,
+    );
+    // Screen-space tint, below the eyelids so closing the eyes hides the green too.
+    this.nauseaTint = this.add
+      .rectangle(-OVERSCAN, -OVERSCAN, GAME_WIDTH + OVERSCAN * 2, GAME_HEIGHT + OVERSCAN * 2, LOOK.nausea.tintColor, 1)
+      .setOrigin(0)
+      .setAlpha(0)
+      .setDepth(Depth.tint);
+    this.queasyShown = false;
     this.eyelids = new Eyelids(this, Depth.eyelids);
     this.blackout = this.add
-      .rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 1)
+      .rectangle(-OVERSCAN, -OVERSCAN, GAME_WIDTH + OVERSCAN * 2, GAME_HEIGHT + OVERSCAN * 2, 0x000000, 1)
       .setOrigin(0)
       .setAlpha(0)
       .setDepth(Depth.blackout);
@@ -140,6 +160,7 @@ export class BusScene extends Phaser.Scene {
       bus.on('microsleep', () => this.fallAsleep()),
       bus.on('wokeUp', () => this.wakeUp()),
       bus.on('startled', () => this.startle()),
+      bus.on('nauseaCritical', () => this.subtitle.show(STR.bus.sick, BALANCE.announcements.subtitleMs)),
       bus.on('announcement', (a) => this.announce(a)),
       bus.on('runEnded', ({ outcome }) => this.endRun(outcome)),
     ];
@@ -201,6 +222,8 @@ export class BusScene extends Phaser.Scene {
     const confusion = s.drowsiness.confusedMs / BALANCE.sleep.confusionMs;
     this.eyelids.set(eyelid);
     this.fatigueBar.set(fatigue);
+    this.nauseaBar.set(s.meters.nausea.value);
+    this.updateNausea(s.meters.nausea.value);
     this.interior.clock.setColor(confusion > 0 ? '#ff8080' : '#cfd8ff');
     this.interior.setStopping(s.stopRequested);
     this.stopButton.setLit(s.stopRequested);
@@ -220,6 +243,28 @@ export class BusScene extends Phaser.Scene {
 
     if (this.engine && 'setRate' in this.engine) {
       (this.engine as Phaser.Sound.WebAudioSound).setRate(0.7 + 0.5 * (s.ride.speed / BALANCE.bus.cruiseSpeed));
+    }
+  }
+
+  /** Warning stages: sway from `warn.sway`, green tint and a subtitle from `warn.queasy`. */
+  private updateNausea(nausea: number): void {
+    const warn = BALANCE.nausea.warn;
+    const look = LOOK.nausea;
+    const cam = this.cameras.main;
+    const sway = clamp((nausea - warn.sway) / (1 - warn.sway), 0, 1);
+    const t = (this.time.now / 1000) * look.swayHz * Math.PI * 2;
+    cam.setRotation(Math.sin(t) * look.swayRadians * sway);
+    cam.setScroll(Math.sin(t * 0.6 + 1) * look.swayPx * sway, 0);
+
+    const queasy = clamp((nausea - warn.queasy) / (1 - warn.queasy), 0, 1);
+    this.nauseaTint.setAlpha(nausea >= warn.queasy ? (0.35 + 0.65 * queasy) * look.tintMaxAlpha : 0);
+
+    if (nausea >= warn.queasy && !this.queasyShown && !this.session.state.sick) {
+      this.queasyShown = true;
+      this.subtitle.show(STR.bus.queasy, BALANCE.announcements.subtitleMs);
+      if (this.cache.audio.exists(SoundKeys.urp)) this.sound.play(SoundKeys.urp);
+    } else if (nausea < warn.sway) {
+      this.queasyShown = false;
     }
   }
 

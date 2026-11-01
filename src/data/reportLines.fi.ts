@@ -16,5 +16,10 @@ export const REPORT_LINES: readonly ReportLine[] = [
   { when: (r) => r.longestMicrosleepMin >= 4, text: (r) => `Pisin torkku ${r.longestMicrosleepMin.toFixed(1).replace('.', ',')} min. Virkistävää.` },
   { when: (r) => r.microsleeps >= 3, text: 'Silmäluomet voittivat erät 1–3.' },
   { when: (r) => r.score >= 1200, text: 'Ennätyskelpoista yöliikkumista.' },
+  { when: (r) => r.outcome.kind === 'sick', text: 'Bussin lattia selvisi. Juuri ja juuri.' },
+  { when: (r) => r.outcome.kind === 'sick' && r.outcome.early, text: 'Raitis ilma ennen kotia. Kävely tekee hyvää. Kai.' },
+  { when: (r) => r.outcome.kind === 'sick' && !r.outcome.early, text: 'Kotipysäkki meni, mutta niin meni muukin.' },
+  { when: (r) => r.outcome.kind === 'home' && r.nauseaCritical, text: 'Pakkopoistuminen osui kotipysäkille. Tätä kutsutaan tuuriksi.' },
+  { when: (r) => r.longestEyesShutSec >= 8, text: 'Lepuutit silmiä. Maisema ei karannut mihinkään.' },
   { when: () => true, text: 'Matkalippu oli voimassa. Luultavasti.' },
 ];

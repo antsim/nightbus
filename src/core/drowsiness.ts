@@ -29,6 +29,9 @@ export interface DrowsinessState {
   waveCount: number;
   /** How long the eyes have been fully closed. */
   closedMs: number;
+  /** Real ms the eyes have been shut enough to rest them (eases nausea), and the longest such stretch. */
+  shutMs: number;
+  longestShutMs: number;
   /** Remaining blackout while asleep. */
   asleepMs: number;
   /** Remaining "where am I" period after waking. */
@@ -69,6 +72,8 @@ export function createDrowsiness(rng: Rng, fatigue: number): DrowsinessState {
     nextWaveInSec: nextWaveGapSec(fatigue, rng),
     waveCount: 0,
     closedMs: 0,
+    shutMs: 0,
+    longestShutMs: 0,
     asleepMs: 0,
     confusedMs: 0,
     lastInputMs: null,
@@ -147,6 +152,8 @@ export function updateEyes(prev: DrowsinessState, dtSec: number, fatigue: number
   s.eyelid = clamp(s.eyelid, 0, 1);
 
   s.closedMs = s.eyelid >= E.closedThreshold ? s.closedMs + dtSec * 1000 : 0;
+  s.shutMs = s.eyelid > BALANCE.nausea.closedRelief.threshold ? s.shutMs + dtSec * 1000 : 0;
+  s.longestShutMs = Math.max(s.longestShutMs, s.shutMs);
   return { state: s, fellAsleep: s.closedMs >= BALANCE.sleep.graceMs, waveStarted };
 }
 
@@ -213,6 +220,7 @@ export function startSleep(prev: DrowsinessState, atMin: number, durationMin: nu
     wave: null,
     nextWaveInSec: nextWaveGapSec(fatigue, rng),
     closedMs: 0,
+    shutMs: 0,
     jumpiness: 0,
     asleepMs: BALANCE.sleep.blackoutMs,
     microsleeps: prev.microsleeps + 1,

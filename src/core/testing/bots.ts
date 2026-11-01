@@ -56,28 +56,77 @@ export function reactiveBot(threshold: number, reactionMs: number): Bot {
   };
 }
 
+/**
+ * Plays like `reactiveBot`, but when nausea passes `nauseaAbove` it lets the
+ * eyes close and keeps them shut for `restMs` before opening them again. While
+ * resting it only presses if the eyes have been fully closed for `dangerMs`
+ * (a microsleep is near).
+ */
+export function nauseaAwareBot({
+  nauseaAbove = 0.6,
+  restMs = 2000,
+  dangerMs = 500,
+  threshold = 0.55,
+  reactionMs = 400,
+}: { nauseaAbove?: number; restMs?: number; dangerMs?: number; threshold?: number; reactionMs?: number } = {}): Bot {
+  return {
+    name: `nauseaAware(${nauseaAbove}, ${restMs})`,
+    start: () => {
+      const reactive = reactiveBot(threshold, reactionMs).start();
+      let resting = false;
+      let shutSince: number | null = null;
+      let pressAt: number | null = null;
+      return (state, nowMs) => {
+        const d = state.drowsiness;
+        if (!resting && state.meters.nausea.value > nauseaAbove) {
+          resting = true;
+          shutSince = null;
+          pressAt = null;
+        }
+        if (!resting) return reactive(state, nowMs);
+
+        if (d.shutMs > 0) shutSince ??= nowMs - d.shutMs;
+        if (shutSince !== null && nowMs - shutSince >= restMs) {
+          resting = false;
+          return reactive(state, nowMs);
+        }
+        if (pressAt === null) {
+          if (d.phase === 'awake' && d.closedMs >= dangerMs) pressAt = nowMs + reactionMs;
+          return false;
+        }
+        if (nowMs < pressAt) return false;
+        pressAt = null;
+        shutSince = null;
+        return true;
+      };
+    },
+  };
+}
+
 /** Never presses. */
 export function idleBot(): Bot {
   return { name: 'idle', start: () => () => false };
 }
 
-/** A reasonably attentive player; reliably stays awake on the default route. */
-export const attentiveBot = (): Bot => reactiveBot(0.55, 400);
+/** A good player: times the presses and rests the eyes when nauseous. Reliably gets home awake. */
+export const attentiveBot = (): Bot => nauseaAwareBot();
 
 export interface DriveOptions {
   /** Press the stop button once the bus has left this stop index. */
   stopAt?: number;
   /** Simulated real time limit. */
   maxMs?: number;
+  /** Stop driving (without finishing the run) once this holds. */
+  until?: (state: RunState) => boolean;
 }
 
 /** Plays `session` with `bot` until the run finishes (or `maxMs`). */
-export function driveBot(session: GameSession, bot: Bot, { stopAt, maxMs = 10 * 60_000 }: DriveOptions = {}): GameSession {
+export function driveBot(session: GameSession, bot: Bot, { stopAt, maxMs = 10 * 60_000, until }: DriveOptions = {}): GameSession {
   const policy = bot.start();
   const step = BALANCE.time.stepMs;
   for (let ms = step; !session.finished && ms <= maxMs; ms += step) {
     session.step(step);
-    if (session.finished) break;
+    if (session.finished || until?.(session.state)) break;
     if (policy(session.state, ms)) session.handleInput('openEyes');
     const r = session.state.ride;
     if (stopAt !== undefined && r.stopIndex === stopAt && r.phase !== 'dwelling') session.handleInput('requestStop');
@@ -91,10 +140,11 @@ export interface RunBotOptions extends DriveOptions, Omit<RunInit, 'seed' | 'rou
 }
 
 /** Plays a whole run with `bot` and returns its final state. */
-export function runBot(bot: Bot, { seed, stopAt, maxMs, route = defaultRoute, ...init }: RunBotOptions): RunState {
+export function runBot(bot: Bot, { seed, stopAt, maxMs, until, route = defaultRoute, ...init }: RunBotOptions): RunState {
   const drive: DriveOptions = {};
   if (stopAt !== undefined) drive.stopAt = stopAt;
   if (maxMs !== undefined) drive.maxMs = maxMs;
+  if (until !== undefined) drive.until = until;
   return driveBot(GameSession.start({ seed, ...init }, route), bot, drive).state;
 }
 

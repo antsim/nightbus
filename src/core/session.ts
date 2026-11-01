@@ -11,7 +11,7 @@ import {
 import { gameMinutesFor } from './clock';
 import { EventBus, type GameEventName, type GameEvents } from './events';
 import { garbleLevel } from './garble';
-import { addModifier, setMeterValue, updateMeters, type MeterId, type Modifier } from './meters';
+import { addModifier, setMeterValue, updateMeters, type MeterContext, type MeterId, type Modifier } from './meters';
 import { rngFrom, type Rng } from './rng';
 import type { Route } from './route';
 import { resolveOutcome, type Outcome } from './outcome';
@@ -74,7 +74,10 @@ export class GameSession {
     }
 
     const dtMin = gameMinutesFor(s.clock, realMs);
+    // Meters (nausea) use the eyelid from the previous step; eyes update after
+    // the world. One 100 ms step of lag is not noticeable.
     this.advanceWorld(dtMin, false);
+    if (s.outcome) return;
 
     const eyes = updateEyes(s.drowsiness, realMs / 1000, s.meters.fatigue.value, this.rng, s.seed);
     s.drowsiness = eyes.state;
@@ -87,10 +90,11 @@ export class GameSession {
     const s = this.state;
     s.clock = { ...s.clock, minutes: s.clock.minutes + dtMin };
 
-    const result = updateMeters(s.meters, s.modifiers, dtMin);
+    const result = updateMeters(s.meters, s.modifiers, dtMin, this.meterContext(asleep));
     s.meters = result.meters;
     s.modifiers = result.modifiers;
     for (const mod of result.expired) this.record('modifierExpired', { id: mod.id, meter: mod.meter });
+    if (!s.sick && s.meters.nausea.value >= 1) this.becomeSick();
 
     if (!this.route) return [];
     const before = s.ride;
@@ -100,7 +104,9 @@ export class GameSession {
     for (const { type, stopId, stopIndex } of ride.events) {
       if (s.outcome) break;
       const payload = { stopId, stopIndex };
-      if (asleep) {
+      // When sick, the other passengers get the player off even asleep: not a missed stop.
+      const forcedOff = type === 'stopReached' && s.sick && s.stopRequested;
+      if (asleep && !forcedOff) {
         if (type === 'stopReached') this.record('stopMissedWhileAsleep', payload);
         if (type === 'terminusReached') this.record('terminusReached', payload);
       } else if (type === 'stopReached' || type === 'terminusReached') {
@@ -112,8 +118,9 @@ export class GameSession {
       }
 
       if (type === 'stopReached') {
-        // The bus stops here; a pending request lets the player off if they are awake.
-        const getsOff = s.stopRequested && !asleep;
+        // The bus stops here; a pending request lets the player off if they are awake
+        // (when sick, the other passengers make sure they get off anyway).
+        const getsOff = s.stopRequested && (!asleep || s.sick);
         s.stopRequested = false;
         if (getsOff) this.alight(stopIndex);
       }
@@ -129,6 +136,20 @@ export class GameSession {
       }
     }
     return ride.events;
+  }
+
+  /** Rates depend on how open the eyes are and whether the bus is moving. */
+  meterContext(asleep = this.state.drowsiness.phase === 'asleep'): MeterContext {
+    const s = this.state;
+    return { eyelid: asleep ? 1 : s.drowsiness.eyelid, busPhase: this.route ? s.ride.phase : null };
+  }
+
+  /** Nausea hit the limit: a stop request that cannot be cancelled. */
+  private becomeSick(): void {
+    const s = this.state;
+    s.sick = true;
+    s.stopRequested = true;
+    this.record('nauseaCritical', { atOffsetSec: s.ride.offsetSec });
   }
 
   private applyJolt(source: 'brake' | 'streetLight', amount: number): void {
@@ -182,7 +203,7 @@ export class GameSession {
     const stop = this.route?.stops[stopIndex];
     if (!stop || !this.route) return;
     const s = this.state;
-    const outcome = resolveOutcome(this.route, stop.id);
+    const outcome = resolveOutcome(this.route, stop.id, s.sick);
     const alight = {
       stopId: stop.id,
       stopName: stop.name,

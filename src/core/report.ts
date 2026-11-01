@@ -12,7 +12,8 @@ export type ScoreItem =
   | { kind: 'wrongStops'; count: number; points: number }
   | { kind: 'terminusFee'; points: number }
   | { kind: 'awake'; minutes: number; points: number }
-  | { kind: 'microsleeps'; count: number; points: number };
+  | { kind: 'microsleeps'; count: number; points: number }
+  | { kind: 'sickFee'; points: number };
 
 /** Facts about one run, without the humorous lines. Plain data: can be shared, saved or sent later. */
 export interface ReportFacts {
@@ -33,6 +34,10 @@ export interface ReportFacts {
   sleptMinutes: number;
   /** Stops passed while asleep. */
   stopsMissed: number;
+  /** Nausea forced the player off (outcome 'sick', or 'home' by luck). */
+  nauseaCritical: boolean;
+  /** Longest stretch of resting the eyes while awake, real seconds. */
+  longestEyesShutSec: number;
   /** Stops between the home stop and where the player got off (0 when home). */
   wrongStops: number;
   awakeMinutes: number;
@@ -60,6 +65,7 @@ export function scoreItems(outcome: Outcome, awakeMinutes: number, microsleeps: 
     items.push({ kind: 'wrongStops', count: outcome.stops, points: -b.wrongStopPenalty * outcome.stops });
   }
   if (outcome.kind === 'terminus') items.push({ kind: 'terminusFee', points: -b.terminusPenalty });
+  if (outcome.kind === 'sick') items.push({ kind: 'sickFee', points: -b.sickPenalty });
   const minutes = Math.floor(awakeMinutes);
   items.push({ kind: 'awake', minutes, points: minutes * b.awakeBonusPerMin });
   if (microsleeps > 0) items.push({ kind: 'microsleeps', count: microsleeps, points: -b.microsleepPenalty * microsleeps });
@@ -106,6 +112,8 @@ export function buildReport(state: RunState, route: Route, lines: readonly Repor
     longestMicrosleepMin: sleeps.reduce((max, s) => Math.max(max, s.durationMin), 0),
     sleptMinutes,
     stopsMissed: state.log.filter((e) => e.type === 'stopMissedWhileAsleep').length,
+    nauseaCritical: state.sick,
+    longestEyesShutSec: state.drowsiness.longestShutMs / 1000,
     wrongStops: Math.abs(state.alight.stopIndex - homeIndex),
     awakeMinutes,
     scoreItems: items,

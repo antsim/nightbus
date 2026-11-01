@@ -11,6 +11,8 @@ const OVERLAP = 12;
  * eyelid 0.5 (where pressing starts to help) both lids cover about a quarter.
  */
 const LOWER_LID_CURVE = 1.2;
+/** Lids extend this far past the screen edges, so a swaying camera never shows a gap. */
+export const OVERSCAN = 60;
 /** Flutter oscillations per second. */
 const FLUTTER_HZ = 18;
 
@@ -60,18 +62,18 @@ export class Eyelids {
       const y = base + ARC_DEPTH * (1 - u * u) * (1 - v * 0.6) + extra;
       return dir === 1 ? y : GAME_HEIGHT - y;
     };
-    const outer = dir === 1 ? -10 : GAME_HEIGHT + 10;
+    const outer = dir === 1 ? -OVERSCAN : GAME_HEIGHT + OVERSCAN;
 
     for (const [extra, alpha] of [
       [SOFT_EDGE, 0.45],
       [0, 1],
     ] as const) {
       const points: Phaser.Types.Math.Vector2Like[] = [
-        { x: 0, y: outer },
-        { x: GAME_WIDTH, y: outer },
+        { x: -OVERSCAN, y: outer },
+        { x: GAME_WIDTH + OVERSCAN, y: outer },
       ];
       for (let i = SEGMENTS; i >= 0; i--) {
-        const x = (GAME_WIDTH * i) / SEGMENTS;
+        const x = -OVERSCAN + ((GAME_WIDTH + OVERSCAN * 2) * i) / SEGMENTS;
         points.push({ x, y: edge(x, extra) });
       }
       // fillPoints only reads x and y.

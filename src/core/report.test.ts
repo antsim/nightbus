@@ -4,7 +4,7 @@ import { REPORT_LINES } from '../data/reportLines.fi';
 import { loadBest, saveIfBest, type KeyValueStorage } from '../services/bestScore';
 import { buildReport, pickLines, receiptNumber, type ReportFacts } from './report';
 import { GameSession } from './session';
-import { attentiveBot, defaultRoute as route, idleBot, runBot } from './testing/bots';
+import { attentiveBot, defaultRoute as route, idleBot, reactiveBot, runBot } from './testing/bots';
 
 const homeIndex = route.stops.findIndex((s) => s.isHome);
 const B = BALANCE.score;
@@ -61,6 +61,21 @@ describe('buildReport', () => {
     expect(r.lines.length).toBeGreaterThan(0);
   });
 
+  it('sick: forced off early, with a sick fee and the longest eyes-shut stretch', () => {
+    const r = buildReport(runBot(reactiveBot(0.55, 400), { seed: 1, stopAt: homeIndex - 1 }), route);
+    expect(r.outcome).toMatchObject({ kind: 'sick', early: true });
+    if (r.outcome.kind !== 'sick') return;
+    expect(r.nauseaCritical).toBe(true);
+    expect(r.wrongStops).toBe(r.outcome.stops);
+    expect(r.scoreItems).toContainEqual({ kind: 'sickFee', points: -B.sickPenalty });
+    expect(r.scoreItems).toContainEqual({ kind: 'wrongStops', count: r.outcome.stops, points: -r.outcome.stops * B.wrongStopPenalty });
+    expect(r.lines.length).toBeGreaterThan(0);
+  });
+
+  it('records how long the eyes were rested', () => {
+    expect(buildReport(play(homeIndex - 1).state, route).longestEyesShutSec).toBeGreaterThan(1);
+  });
+
   it('is deterministic for the same run', () => {
     const a = buildReport(play(homeIndex - 1, { seed: 9 }).state, route);
     const b = buildReport(play(homeIndex - 1, { seed: 9 }).state, route);
@@ -96,9 +111,17 @@ describe('report lines', () => {
   });
 
   it('every line renders without errors for every outcome', () => {
-    for (const outcome of [{ kind: 'home' }, { kind: 'tooEarly', stops: 2 }, { kind: 'overshot', stops: 1 }, facts.outcome] as const) {
+    const outcomes = [
+      { kind: 'home' },
+      { kind: 'tooEarly', stops: 2 },
+      { kind: 'overshot', stops: 1 },
+      { kind: 'sick', stops: 3, early: true },
+      { kind: 'sick', stops: 1, early: false },
+      facts.outcome,
+    ] as const;
+    for (const outcome of outcomes) {
       for (const line of REPORT_LINES) {
-        const f = { ...facts, outcome };
+        const f = { ...facts, outcome, nauseaCritical: outcome.kind === 'sick' };
         if (line.when(f)) expect(typeof line.text === 'function' ? line.text(f) : line.text).toMatch(/\S/);
       }
     }
@@ -129,6 +152,13 @@ describe('best score', () => {
     // A fresh read (as after a page reload) sees the stored record.
     expect(loadBest(storage)?.score).toBe(900);
     expect([...storage.data.keys()]).toEqual(['yobussi.v1.best']);
+  });
+
+  it('accepts a sick result', () => {
+    const storage = memory();
+    const sick = { ...report(300), outcome: { kind: 'sick', stops: 2, early: true } as const };
+    expect(saveIfBest(sick, now, storage)).toBe(true);
+    expect(loadBest(storage)?.outcome).toBe('sick');
   });
 
   it('never counts a zero score as a record', () => {

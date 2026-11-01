@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { addModifier, createMeter, createMeters, setMeterValue, updateMeters, type Meters } from './meters';
+import { BALANCE } from '../data/balance';
+import { addModifier, createMeter, createMeters, nauseaRate, setMeterValue, updateMeters, type MeterContext, type Meters } from './meters';
+import { GameSession } from './session';
+import { defaultRoute } from './testing/bots';
 
-const meters = (intoxication = 0.5, fatigue = 0.5, cold = 0.5): Meters =>
-  createMeters({ intoxication, fatigue, cold });
+const meters = (intoxication = 0.5, fatigue = 0.5, cold = 0.5, nausea = 0.5): Meters =>
+  createMeters({ intoxication, fatigue, cold, nausea });
 
 describe('meters', () => {
   it('clamps on creation and on set', () => {
@@ -68,5 +71,72 @@ describe('meters', () => {
     let mods = addModifier([], { id: 'coffee', meter: 'fatigue', ratePerMin: -0.05, durationMin: 10 });
     mods = addModifier(mods, { id: 'coffee', meter: 'fatigue', ratePerMin: -0.05, durationMin: 10 });
     expect(mods).toHaveLength(1);
+  });
+});
+
+describe('nausea', () => {
+  const N = BALANCE.nausea;
+  const at = (eyelid: number, busPhase: MeterContext['busPhase']): MeterContext => ({ eyelid, busPhase });
+  const rate = (intox: number, ctx: MeterContext) => nauseaRate(meters(intox, 0.5, 0, 0.5), ctx);
+
+  it('rises with the eyes open in a moving bus, more when drunk', () => {
+    expect(rate(0, at(0, 'driving'))).toBeCloseTo(N.openBasePerMin);
+    expect(rate(0.6, at(0, 'driving'))).toBeCloseTo(N.openBasePerMin + N.openPerIntoxPerMin * 0.6);
+    expect(rate(0.9, at(0, 'driving'))).toBeGreaterThan(rate(0.3, at(0, 'driving')));
+  });
+
+  it('scales with how open the eyes are', () => {
+    expect(rate(0.6, at(0.5, 'driving'))).toBeCloseTo(rate(0.6, at(0, 'driving')) / 2);
+  });
+
+  it('spikes while accelerating and braking', () => {
+    for (const phase of ['accelerating', 'braking'] as const) {
+      expect(rate(0.6, at(0, phase)) - rate(0.6, at(0, 'driving'))).toBeCloseTo(N.motionPerMin);
+    }
+  });
+
+  it('eases with the eyes closed, even while moving', () => {
+    expect(rate(0.6, at(N.closedRelief.threshold + 0.05, 'braking'))).toBeLessThan(0);
+    expect(rate(0.6, at(1, 'driving'))).toBeCloseTo(-N.closedRelief.perMin);
+  });
+
+  it('eases slowly in a standing bus, even with the eyes open', () => {
+    expect(rate(0.9, at(0, 'dwelling'))).toBeCloseTo(-N.stillPerMin);
+    expect(rate(0.9, at(1, 'dwelling'))).toBeLessThan(rate(0.9, at(0, 'dwelling')));
+  });
+
+  it('only changes through updateMeters with the given context', () => {
+    const m = meters(0.6, 0.5, 0, 0.5);
+    expect(updateMeters(m, [], 1, at(0, 'driving')).meters.nausea.value).toBeGreaterThan(0.5);
+    expect(updateMeters(m, [], 1, at(1, 'driving')).meters.nausea.value).toBeLessThan(0.5);
+    // Without context (not on a bus, eyes shut) it never rises.
+    expect(updateMeters(m, [], 1).meters.nausea.value).toBeLessThanOrEqual(0.5);
+  });
+
+  it('in a ride with the same seed: rises with eyes open, falls with eyes shut and during a microsleep', () => {
+    const ride = (eyelid: number | null) => {
+      const s = GameSession.start({ seed: 4, nausea: 0.5 }, defaultRoute);
+      while (s.state.ride.phase === 'dwelling') s.step(BALANCE.time.stepMs);
+      for (let i = 0; i < 50; i++) {
+        if (eyelid !== null) s.state.drowsiness = { ...s.state.drowsiness, eyelid, closedMs: 0 };
+        s.step(BALANCE.time.stepMs);
+      }
+      return s.state.meters.nausea.value;
+    };
+    expect(ride(0)).toBeGreaterThan(0.5);
+    expect(ride(0.9)).toBeLessThan(0.5);
+
+    const s = GameSession.start({ seed: 4, nausea: 0.5, fatigue: 0.95 }, defaultRoute);
+    let before = 0;
+    while (s.state.drowsiness.microsleeps === 0 && !s.finished) {
+      before = s.state.meters.nausea.value;
+      s.step(BALANCE.time.stepMs);
+    }
+    const sleep = s.state.log.find((e) => e.type === 'microsleep');
+    expect(sleep?.type).toBe('microsleep');
+    if (sleep?.type !== 'microsleep') return;
+    // Eased by the length of the sleep (clamped at 0).
+    const eased = before - s.state.meters.nausea.value;
+    expect(eased).toBeGreaterThanOrEqual(Math.min(before, N.closedRelief.perMin * sleep.data.durationMin) - 0.01);
   });
 });

@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { formatTime } from '../core/clock';
 import { isFlustered } from '../core/drowsiness';
-import { METER_IDS } from '../core/meters';
+import { METER_IDS, nauseaRate } from '../core/meters';
 import { formatEuros } from '../core/money';
 import { homeStop, nextStop, type Route } from '../core/route';
 import type { GameSession } from '../core/session';
@@ -45,6 +45,7 @@ export class DebugOverlay {
       keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F1, true).on('down', () => this.toggle());
       keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F2, true).on('down', () => this.toggleFast());
       keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F3, true).on('down', () => this.session.setMeter('fatigue', 1));
+      keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F4, true).on('down', () => this.session.setMeter('nausea', 0.95));
     }
 
     scene.events.on(Phaser.Scenes.Events.POST_UPDATE, this.refresh, this);
@@ -81,6 +82,7 @@ export class DebugOverlay {
       `${d.timeScale}: ${s.clock.timeScale} ${d.timeScaleUnit}${this.fast ? ' (×' + BALANCE.time.debugSpeedMultiplier + ')' : ''}`,
       `${d.seed}: ${s.seed}`,
       ...METER_IDS.map((id) => `${d[id].padEnd(8)} ${bar(s.meters[id].value)}`),
+      this.nauseaLine(),
       `${d.money}: ${formatEuros(s.money)}`,
       `${d.modifiers}:${mods.length === 0 ? ' ' + d.none : ''}`,
       ...mods,
@@ -88,6 +90,13 @@ export class DebugOverlay {
       `${d.logEntries}: ${s.log.length}`,
       ...this.routeLines(),
     ]);
+  }
+
+  private nauseaLine(): string {
+    const s = this.session.state;
+    const d = STR.debug;
+    const rate = nauseaRate(s.meters, this.session.meterContext());
+    return `${d.nauseaRate} ${rate >= 0 ? '+' : ''}${rate.toFixed(3)}${d.perMin}${s.sick ? ` ${d.sick}` : ''}`;
   }
 
   private eyeLines(): string[] {

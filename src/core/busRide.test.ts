@@ -136,6 +136,8 @@ describe('GameSession with a route', () => {
 
   it('logs arrivals and only announces approaches and departures', () => {
     const session = GameSession.start({ seed: 1, timeScale: 6 }, line6);
+    // Not about nausea: eyes stay open at this speed, so keep the player from getting sick.
+    session.addModifier({ id: 'test-no-nausea', meter: 'nausea', ratePerMin: -1 });
     const approaching: string[] = [];
     session.bus.on('stopApproaching', ({ stopId }) => approaching.push(stopId));
     while (!session.finished) session.step(BALANCE.time.stepMs);
