@@ -83,7 +83,18 @@ export class BusScene extends Phaser.Scene {
     this.displayName = null;
     this.flickerMs = 0;
 
-    this.scenery = new WindowScenery(this, route, WINDOW);
+    this.scenery = new WindowScenery(this, route, WINDOW, {
+      // Same garble as the ceiling display, at the current state.
+      name: (index) => {
+        const stop = route.stops[index];
+        if (!stop) return '';
+        const m = this.session.state.meters;
+        const level = garbleLevel(m.intoxication.value, m.fatigue.value) * BALANCE.announcements.displayLevelFactor;
+        return garble(stop.name, level, createRng(this.session.state.seed ^ Math.imul(index + 1, 0x2545f491)));
+      },
+      // Still waiting until the bus has stopped there.
+      waiting: (index) => this.session.stopPlan(index).waiting && this.session.state.ride.stopIndex < index,
+    });
     this.interior = new BusInterior(this, WINDOW, PILLARS_X);
     this.windowGlow = this.add
       .rectangle(WINDOW.x, WINDOW.y, WINDOW.width, WINDOW.height, 0xffd27a, 0)
@@ -160,6 +171,7 @@ export class BusScene extends Phaser.Scene {
       bus.on('microsleep', () => this.fallAsleep()),
       bus.on('wokeUp', () => this.wakeUp()),
       bus.on('startled', () => this.startle()),
+      bus.on('requestTooLate', () => this.subtitle.show(STR.bus.tooLate, BALANCE.announcements.subtitleMs)),
       bus.on('nauseaCritical', () => this.subtitle.show(STR.bus.sick, BALANCE.announcements.subtitleMs)),
       bus.on('announcement', (a) => this.announce(a)),
       bus.on('runEnded', ({ outcome }) => this.endRun(outcome)),
@@ -225,8 +237,9 @@ export class BusScene extends Phaser.Scene {
     this.nauseaBar.set(s.meters.nausea.value);
     this.updateNausea(s.meters.nausea.value);
     this.interior.clock.setColor(confusion > 0 ? '#ff8080' : '#cfd8ff');
-    this.interior.setStopping(s.stopRequested);
-    this.stopButton.setLit(s.stopRequested);
+    // Ceiling light: anyone's request. Button glow: only the player's own.
+    this.interior.setStopping(s.playerRequested || s.otherRequested);
+    this.stopButton.setLit(s.playerRequested);
     this.updateDisplay(delta);
 
     if (this.vignette) {

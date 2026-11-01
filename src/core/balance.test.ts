@@ -22,7 +22,7 @@ function share(bot: Bot, pass: (state: RunState) => boolean, opts: Omit<RunBotOp
   return SEEDS.map((seed) => runBot(bot, { seed, ...opts })).filter(pass).length / SEEDS.length;
 }
 
-/** Requests the stop right after the stop before home, i.e. plays the route correctly. */
+/** Requests the stop after seeing the bus leave or pass the stop before home (with a reaction delay). */
 const headingHome = { stopAt: defaultRoute.stops.findIndex((s) => s.isHome) - 1 };
 const gotHome = (s: RunState) => s.outcome?.kind === 'home';
 
@@ -47,5 +47,14 @@ describe('balance metrics (20 seeds)', () => {
 
   it('resting the eyes when nauseous works: nauseaAware gets home in ≥ 60 %', () => {
     expect(share(nauseaAwareBot(), gotHome, headingHome)).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it('reacting to the stop before home works: gets home in ≥ 60 % (request only after seeing it go by)', () => {
+    expect(share(nauseaAwareBot(), gotHome, { ...headingHome, stopReactionMs: 700 })).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it("trusting someone else's light fails clearly more often (≥ 20 points more)", () => {
+    const failed = (opts: Omit<RunBotOptions, 'seed'>) => share(nauseaAwareBot(), (s) => !gotHome(s), opts);
+    expect(failed({ ...headingHome, trustLight: true })).toBeGreaterThanOrEqual(failed(headingHome) + 0.2);
   });
 });

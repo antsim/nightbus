@@ -15,10 +15,10 @@ export const BALANCE = {
     debugSpeedMultiplier: 4,
   },
   bus: {
-    /** Route seconds per game second at full speed (>1 makes up for dwell time). */
-    cruiseSpeed: 1.6,
-    /** Game seconds standing at each stop. */
-    dwellSec: 15,
+    /** Route seconds per game second at full speed (tuned so the whole route takes 3–4 real minutes). */
+    cruiseSpeed: 1.1,
+    /** Game seconds standing at a stop (no rush at night). */
+    dwellSec: 6,
     /** Game seconds from standstill to cruise speed. */
     accelSec: 8,
     /** Route seconds before a stop where braking starts. */
@@ -27,6 +27,20 @@ export const BALANCE = {
     minSpeedFactor: 0.08,
     /** Route seconds before a stop when it is announced (stopApproaching). */
     approachLeadSec: 25,
+  },
+  stops: {
+    /**
+     * Route seconds before a stop when the driver decides whether to stop:
+     * braking distance plus a small margin. A request after this is too late.
+     */
+    requestCutoffSec: 12,
+    /** Chance that someone waits at a stop (decided per stop from the run seed). */
+    waitingChance: 0.3,
+    /** Chance that another passenger presses the button for a stop; `busy` stops (campus, hospital) more often. */
+    otherRequestChance: 0.2,
+    busyOtherRequestChance: 0.5,
+    /** Another passenger's request always lights up at least this long (route seconds) before the cutoff. */
+    minLeadSec: 8,
   },
   scenery: {
     /** Screen pixels per route second for the nearest layer. */

@@ -21,9 +21,25 @@ export interface BusRideState {
   stopIndex: number;
   /** Highest stop index already announced with stopApproaching. */
   approachedIndex: number;
+  /**
+   * Whether the bus stops at the next stop. null until the bus is within
+   * `stops.requestCutoffSec` of it; then the decision is locked (the driver
+   * starts braking soon after, or drives past at full speed).
+   */
+  willStopAtNext: boolean | null;
 }
 
-export type RideEventType = 'stopApproaching' | 'stopReached' | 'stopDeparted' | 'terminusReached';
+/** stopReached = the bus actually stopped; stopPassed = it drove past at full speed. */
+export type RideEventType = 'stopApproaching' | 'stopReached' | 'stopPassed' | 'stopDeparted' | 'terminusReached';
+
+/**
+ * Asked once per stop, when the decision is locked: does anyone want to get
+ * on or off at stop `index`? The terminus is always a stop.
+ */
+export type StopDecider = (index: number) => boolean;
+
+/** Default: stop everywhere (as a timetable would). */
+export const STOP_EVERYWHERE: StopDecider = () => true;
 
 export interface RideEvent {
   type: RideEventType;
@@ -50,22 +66,38 @@ export function createRide(routeId: string, startOffsetSec = 0): BusRideState {
     speed: 0,
     stopIndex: 0,
     approachedIndex: 0,
+    willStopAtNext: null,
   };
 }
 
-/** Speed and phase while moving, as a pure function of time since departure and distance left. */
-export function movingSpeed(sinceDepartureSec: number, remainingSec: number): { speed: number; phase: BusPhase } {
+/**
+ * Speed and phase while moving, as a pure function of time since departure and
+ * distance left. When not stopping at the next stop there is nothing to brake for.
+ */
+export function movingSpeed(
+  sinceDepartureSec: number,
+  remainingSec: number,
+  stopping = true,
+): { speed: number; phase: BusPhase } {
   const b = BALANCE.bus;
   const accel = clamp(sinceDepartureSec / b.accelSec, 0, 1);
   // Constant deceleration: v ∝ √distance.
-  const brake = Math.sqrt(clamp(remainingSec / b.brakeDistanceSec, 0, 1));
+  const brake = stopping ? Math.sqrt(clamp(remainingSec / b.brakeDistanceSec, 0, 1)) : 1;
   const factor = Math.max(b.minSpeedFactor, Math.min(accel, brake));
   const phase: BusPhase = brake < 1 && brake <= accel ? 'braking' : accel < 1 ? 'accelerating' : 'driving';
   return { speed: b.cruiseSpeed * factor, phase };
 }
 
-/** Advances the ride by `dtSec` game seconds. Handles any number of stops within one call. */
-export function stepRide(prev: BusRideState, route: Route, dtSec: number): RideStep {
+/** True when a request made now is too late for the next stop: the decision is already locked as "drive past". */
+export function tooLateForNext(ride: BusRideState): boolean {
+  return ride.willStopAtNext === false;
+}
+
+/**
+ * Advances the ride by `dtSec` game seconds. Handles any number of stops within
+ * one call; `wantsStop` decides (once per stop) whether the bus stops there.
+ */
+export function stepRide(prev: BusRideState, route: Route, dtSec: number, wantsStop: StopDecider = STOP_EVERYWHERE): RideStep {
   const ride = { ...prev };
   const events: RideEvent[] = [];
   const stops = route.stops;
@@ -102,9 +134,13 @@ export function stepRide(prev: BusRideState, route: Route, dtSec: number): RideS
       break;
     }
     const nextIndex = ride.stopIndex + 1;
+    const isTerminus = next.isTerminus === true || nextIndex === stops.length - 1;
     const remaining = next.offsetSec - ride.offsetSec;
+    if (ride.willStopAtNext === null && remaining <= BALANCE.stops.requestCutoffSec) {
+      ride.willStopAtNext = isTerminus || wantsStop(nextIndex);
+    }
     const h = Math.min(dt, MAX_SUBSTEP_SEC);
-    const { speed, phase } = movingSpeed(ride.sinceDepartureSec, remaining);
+    const { speed, phase } = movingSpeed(ride.sinceDepartureSec, remaining, ride.willStopAtNext !== false);
     const move = speed * h;
 
     if (ride.approachedIndex < nextIndex && remaining - move <= BALANCE.bus.approachLeadSec) {
@@ -112,13 +148,23 @@ export function stepRide(prev: BusRideState, route: Route, dtSec: number): RideS
       emit('stopApproaching', nextIndex);
     }
 
-    if (move >= remaining) {
+    if (move >= remaining && ride.willStopAtNext === false) {
+      // Drive past at full speed: no braking, no dwell, keep the momentum.
       dt -= remaining / speed;
       ride.offsetSec = next.offsetSec;
       ride.stopIndex = nextIndex;
+      ride.willStopAtNext = null;
+      ride.sinceDepartureSec += remaining / speed;
+      ride.timeInPhaseSec += remaining / speed;
+      emit('stopPassed', nextIndex);
+    } else if (move >= remaining) {
+      dt -= remaining / speed;
+      ride.offsetSec = next.offsetSec;
+      ride.stopIndex = nextIndex;
+      ride.willStopAtNext = null;
       ride.speed = 0;
       emit('stopReached', nextIndex);
-      if (next.isTerminus || nextIndex === stops.length - 1) {
+      if (isTerminus) {
         emit('terminusReached', nextIndex);
         setPhase('finished');
       } else {

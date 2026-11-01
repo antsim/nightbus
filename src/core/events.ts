@@ -11,6 +11,8 @@ export type GameEvents = {
   timeScaleChanged: { timeScale: number };
   stopApproaching: StopEvent;
   stopReached: StopEvent;
+  /** Drove past without stopping. */
+  stopPassed: StopEvent;
   stopDeparted: StopEvent;
   terminusReached: StopEvent;
   stopMissedWhileAsleep: StopEvent;
@@ -22,6 +24,10 @@ export type GameEvents = {
   streetLightPassed: Record<string, never>;
   jolt: { source: 'brake' | 'streetLight'; amount: number };
   stopRequested: { atOffsetSec: number };
+  /** The player's request came too late for this stop; it holds for the next one. */
+  requestTooLate: StopEvent;
+  /** Another passenger asked to stop at this stop. */
+  otherStopRequested: StopEvent;
   /** Nausea hit the limit: a forced stop request. */
   nauseaCritical: { atOffsetSec: number };
   announcement: Announcement;

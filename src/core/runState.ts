@@ -24,8 +24,10 @@ export interface RunState {
   modifiers: ActiveModifier[];
   ride: BusRideState;
   drowsiness: DrowsinessState;
-  /** Stop button pressed; cleared whenever the bus stops. */
-  stopRequested: boolean;
+  /** The player pressed the stop button (button glows); cleared whenever the bus stops. */
+  playerRequested: boolean;
+  /** Another passenger pressed it (ceiling light only); cleared whenever the bus stops. */
+  otherRequested: boolean;
   /** Nausea hit the limit: the player gets off at the next stop, even asleep. */
   sick: boolean;
   /** Latest stop announcement. */
@@ -67,7 +69,8 @@ export function createRun(init: RunInit): RunState {
     modifiers: [],
     ride: createRide(init.routeId ?? start.routeId),
     drowsiness,
-    stopRequested: false,
+    playerRequested: false,
+    otherRequested: false,
     sick: false,
     announcement: null,
     outcome: null,

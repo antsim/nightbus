@@ -15,7 +15,8 @@
       "name": "Yliopisto C",
       "lat": 61.49473,
       "lon": 23.77769,
-      "offsetSec": 180
+      "offsetSec": 180,
+      "busy": true
     },
     {
       "id": "tampere:0561",
@@ -50,21 +51,24 @@
       "name": "TAMK",
       "lat": 61.50225,
       "lon": 23.80823,
-      "offsetSec": 600
+      "offsetSec": 600,
+      "busy": true
     },
     {
       "id": "tampere:5008",
       "name": "TAYS D",
       "lat": 61.50316,
       "lon": 23.81539,
-      "offsetSec": 660
+      "offsetSec": 660,
+      "busy": true
     },
     {
       "id": "tampere:5038",
       "name": "Kaupin kampus E",
       "lat": 61.50424,
       "lon": 23.82281,
-      "offsetSec": 690
+      "offsetSec": 690,
+      "busy": true
     },
     {
       "id": "tampere:5040",

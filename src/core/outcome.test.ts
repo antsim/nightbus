@@ -69,11 +69,11 @@ describe('stop button and outcomes in play', () => {
     const s = GameSession.start({ seed: 1 }, route);
     while (s.state.ride.phase === 'dwelling') s.step(STEP);
     s.handleInput('requestStop');
-    expect(s.state.stopRequested).toBe(true);
+    expect(s.state.playerRequested).toBe(true);
     s.handleInput('requestStop'); // second press is ignored
     expect(s.state.log.filter((e) => e.type === 'stopRequested')).toHaveLength(1);
     driveBot(s, attentiveBot());
-    expect(s.state.stopRequested).toBe(false);
+    expect(s.state.playerRequested).toBe(false);
     expect(s.outcome).toEqual({ kind: 'tooEarly', stops: homeIndex - 1 });
   });
 
@@ -81,7 +81,7 @@ describe('stop button and outcomes in play', () => {
     const s = GameSession.start({ seed: 7, fatigue: 0.95 }, route);
     while (s.state.drowsiness.phase !== 'asleep') s.step(STEP);
     s.handleInput('requestStop');
-    expect(s.state.stopRequested).toBe(false);
+    expect(s.state.playerRequested).toBe(false);
   });
 
   it('a request is lost if the bus stops while you sleep', () => {
@@ -91,9 +91,61 @@ describe('stop button and outcomes in play', () => {
     while (s.state.drowsiness.microsleeps === 0 && !s.finished) s.step(STEP);
     const missed = s.state.log.filter((e) => e.type === 'stopMissedWhileAsleep');
     if (missed.length > 0) {
-      expect(s.state.stopRequested).toBe(false);
+      expect(s.state.playerRequested).toBe(false);
       expect(s.state.alight).toBeNull();
     }
+  });
+});
+
+describe('stop requests', () => {
+  /** A session kept awake and well (no nausea), driven until `cond` holds. */
+  const until = (seed: number, cond: (s: GameSession) => boolean) => {
+    const s = GameSession.start({ seed }, route);
+    s.addModifier({ id: 'test-no-nausea', meter: 'nausea', ratePerMin: -1 });
+    driveBot(s, attentiveBot(), { until: () => cond(s) });
+    return s;
+  };
+  /** First seed and stop where another passenger asks to stop and nobody waits. */
+  const otherOnly = () => {
+    for (let seed = 1; ; seed++) {
+      const s = GameSession.start({ seed }, route);
+      for (let i = 1; i < homeIndex - 1; i++) {
+        const p = s.stopPlan(i);
+        if (p.otherRequest && !p.waiting) return { seed, index: i };
+      }
+    }
+  };
+
+  it('too late: the driver passes the stop, the request holds for the next one', () => {
+    const s = until(3, (x) => x.state.ride.willStopAtNext === false && x.state.ride.stopIndex >= 1);
+    const missed = s.state.ride.stopIndex + 1;
+    const late: number[] = [];
+    s.bus.on('requestTooLate', ({ stopIndex }) => late.push(stopIndex));
+    s.handleInput('requestStop');
+    expect(late).toEqual([missed]);
+    expect(s.state.log.some((e) => e.type === 'requestTooLate')).toBe(true);
+    driveBot(s, attentiveBot());
+    expect(s.state.log.some((e) => e.type === 'stopPassed' && e.data.stopIndex === missed)).toBe(true);
+    expect(s.state.alight?.stopIndex).toBe(missed + 1);
+  });
+
+  it("another passenger's request lights the ceiling but not the button, and the player stays on", () => {
+    const { seed, index } = otherOnly();
+    const s = until(seed, (x) => x.state.otherRequested && x.state.ride.stopIndex === index - 1);
+    expect(s.state.playerRequested).toBe(false);
+    driveBot(s, attentiveBot(), { until: (st) => st.ride.stopIndex === index });
+    expect(s.state.log.some((e) => e.type === 'stopReached' && e.data.stopIndex === index)).toBe(true);
+    expect(s.outcome).toBeNull();
+    expect(s.state.otherRequested).toBe(false);
+  });
+
+  it('pressing while the bus already stops for someone else gets the player off there', () => {
+    const { seed, index } = otherOnly();
+    const s = until(seed, (x) => x.state.ride.willStopAtNext === true && x.state.ride.stopIndex === index - 1);
+    s.handleInput('requestStop');
+    expect(s.state.log.some((e) => e.type === 'requestTooLate')).toBe(false);
+    driveBot(s, attentiveBot());
+    expect(s.state.alight?.stopIndex).toBe(index);
   });
 });
 
@@ -119,7 +171,7 @@ describe('nausea limit', () => {
     atLimit(s);
     s.step(STEP);
     expect(s.state.sick).toBe(true);
-    expect(s.state.stopRequested).toBe(true);
+    expect(s.state.playerRequested).toBe(true);
     s.handleInput('requestStop');
     for (let i = 0; i < 5; i++) s.step(STEP);
     expect(critical).toHaveLength(1);

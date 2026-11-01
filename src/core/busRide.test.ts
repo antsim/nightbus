@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../data/balance';
 import routes from '../data/routes/bus-nro6.json';
-import { createRide, stepRide, type BusRideState, type RideEvent } from './busRide';
+import { createRide, stepRide, tooLateForNext, type BusRideState, type RideEvent, type StopDecider } from './busRide';
 import { parseRoute, type Route } from './route';
 import { GameSession } from './session';
 import { attentiveBot, driveBot } from './testing/bots';
@@ -17,13 +17,13 @@ const route: Route = parseRoute({
 });
 
 /** Runs the ride to the end in fixed steps, collecting every event and state. */
-function runToEnd(dtSec: number, r: Route = route) {
+function runToEnd(dtSec: number, r: Route = route, wantsStop?: StopDecider) {
   let ride = createRide(r.id);
   const events: RideEvent[] = [];
   const states: BusRideState[] = [ride];
   let t = 0;
   while (ride.phase !== 'finished') {
-    const step = stepRide(ride, r, dtSec);
+    const step = stepRide(ride, r, dtSec, wantsStop);
     ride = step.ride;
     events.push(...step.events);
     states.push(ride);
@@ -114,6 +114,76 @@ describe('busRide', () => {
     expect(oneShot.ride.phase).toBe('finished');
   });
 
+  describe('stops only on request', () => {
+    const onlyAt = (...indices: number[]): StopDecider => (i) => indices.includes(i);
+
+    it('drives past stops nobody wants, at full speed', () => {
+      const { events, states } = runToEnd(0.1, route, onlyAt(2));
+      expect(events.map((e) => `${e.type}:${e.stopId}`)).toEqual([
+        'stopDeparted:a',
+        'stopApproaching:b',
+        'stopPassed:b',
+        'stopApproaching:c',
+        'stopReached:c',
+        'stopDeparted:c',
+        'stopApproaching:d',
+        'stopReached:d',
+        'terminusReached:d',
+      ]);
+      // No braking and no dwell around b.
+      const nearB = states.filter((s) => s.offsetSec > 45 && s.offsetSec < 62);
+      expect(nearB.every((s) => s.phase === 'driving' && s.speed === BALANCE.bus.cruiseSpeed)).toBe(true);
+    });
+
+    it('stops for dwellSec where someone wants to', () => {
+      const { states } = runToEnd(0.1, route, onlyAt(1));
+      const atB = states.filter((s) => s.phase === 'dwelling' && s.stopIndex === 1);
+      expect(atB.length * 0.1).toBeCloseTo(BALANCE.bus.dwellSec, 0);
+    });
+
+    it('always stops at the terminus', () => {
+      const { ride, events } = runToEnd(0.5, route, () => false);
+      expect(ride.phase).toBe('finished');
+      expect(events.filter((e) => e.type === 'stopReached').map((e) => e.stopId)).toEqual(['d']);
+    });
+
+    it('decides once per stop, at the cutoff distance', () => {
+      const asked: { index: number; remaining: number }[] = [];
+      let ride = createRide(route.id);
+      while (ride.phase !== 'finished') {
+        const at = ride;
+        ride = stepRide(ride, route, 0.1, (index) => {
+          asked.push({ index, remaining: route.stops[index]!.offsetSec - at.offsetSec });
+          return false;
+        }).ride;
+      }
+      expect(asked.map((a) => a.index)).toEqual([1, 2]);
+      for (const a of asked) {
+        expect(a.remaining).toBeLessThanOrEqual(BALANCE.stops.requestCutoffSec + BALANCE.bus.cruiseSpeed * 0.1);
+        expect(a.remaining).toBeGreaterThan(BALANCE.bus.brakeDistanceSec);
+      }
+    });
+
+    it('a request after the cutoff is too late for that stop', () => {
+      let ride = createRide(route.id);
+      const decided: boolean[] = [];
+      while (ride.stopIndex === 0) {
+        ride = stepRide(ride, route, 0.1, () => false).ride;
+        decided.push(tooLateForNext(ride));
+      }
+      // Too late from the cutoff until the stop is passed.
+      expect(decided.some(Boolean)).toBe(true);
+      expect(tooLateForNext(ride)).toBe(false);
+    });
+
+    it('gives the same result for one long step (microsleep) as for many short ones', () => {
+      const decide = onlyAt(2);
+      const fine = runToEnd(0.05, route, decide);
+      const oneShot = stepRide(createRide(route.id), route, fine.totalSec + 1, decide);
+      expect(oneShot.events.map((e) => e.type)).toEqual(fine.events.map((e) => e.type));
+    });
+  });
+
   it('does not mutate the input state', () => {
     const ride = createRide(route.id);
     const copy = { ...ride };
@@ -134,7 +204,7 @@ describe('GameSession with a route', () => {
     expect(realMs / 60_000).toBeLessThan(4);
   });
 
-  it('logs arrivals and only announces approaches and departures', () => {
+  it('logs arrivals and pass-bys and only announces approaches and departures', () => {
     const session = GameSession.start({ seed: 1, timeScale: 6 }, line6);
     // Not about nausea: eyes stay open at this speed, so keep the player from getting sick.
     session.addModifier({ id: 'test-no-nausea', meter: 'nausea', ratePerMin: -1 });
@@ -142,8 +212,18 @@ describe('GameSession with a route', () => {
     session.bus.on('stopApproaching', ({ stopId }) => approaching.push(stopId));
     while (!session.finished) session.step(BALANCE.time.stepMs);
 
-    const reached = session.state.log.filter((e) => e.type === 'stopReached');
-    expect(reached).toHaveLength(line6.stops.length - 1);
+    // Every stop is either reached (someone gets on or off) or passed, in order.
+    const visited = session.state.log.filter((e) => e.type === 'stopReached' || e.type === 'stopPassed');
+    expect(visited.map((e) => e.type === 'stopReached' || e.type === 'stopPassed' ? e.data.stopId : '')).toEqual(
+      line6.stops.slice(1).map((s) => s.id),
+    );
+    for (const e of visited) {
+      if (e.type !== 'stopReached' && e.type !== 'stopPassed') continue;
+      const plan = session.stopPlan(e.data.stopIndex);
+      const isLast = e.data.stopIndex === line6.stops.length - 1;
+      expect(e.type === 'stopReached').toBe(isLast || plan.waiting || plan.otherRequest);
+    }
+    expect(visited.some((e) => e.type === 'stopPassed')).toBe(true);
     expect(session.state.log.filter((e) => e.type === 'terminusReached')).toHaveLength(1);
     expect(session.state.log.some((e) => e.type === 'stopApproaching' || e.type === 'stopDeparted')).toBe(false);
     expect(approaching).toEqual(line6.stops.slice(1).map((s) => s.id));

@@ -99,6 +99,20 @@ export class DebugOverlay {
     return `${d.nauseaRate} ${rate >= 0 ? '+' : ''}${rate.toFixed(3)}${d.perMin}${s.sick ? ` ${d.sick}` : ''}`;
   }
 
+  /** Who asked to stop, the driver's decision and what waits at the next stop. */
+  private requestLine(): string {
+    const s = this.session.state;
+    const d = STR.debug;
+    const plan = this.session.stopPlan(s.ride.stopIndex + 1);
+    const flag = (on: boolean) => (on ? '■' : '□');
+    const decision = s.ride.willStopAtNext === null ? d.undecided : s.ride.willStopAtNext ? d.yes : d.no;
+    const other = plan.otherAtOffsetSec === null ? d.none : plan.otherAtOffsetSec.toFixed(0);
+    return (
+      `${d.requests}: ${d.player} ${flag(s.playerRequested)} ${d.other} ${flag(s.otherRequested)}, ` +
+      `${d.willStop}: ${decision}, ${d.waiting} ${flag(plan.waiting)}, ${d.otherAt}${other}`
+    );
+  }
+
   private eyeLines(): string[] {
     const s = this.session.state;
     const e = s.drowsiness;
@@ -129,6 +143,7 @@ export class DebugOverlay {
       `${d.position}: ${offset.toFixed(1)} s`,
       `${d.busPhase}: ${ride.phase} (${ride.timeInPhaseSec.toFixed(1)} s), ${d.speed} ${ride.speed.toFixed(2)}`,
       `${d.nextStop}: ${next ? `${next.name} @ ${next.offsetSec} s` : d.none}`,
+      this.requestLine(),
       `${d.home}: ${home.name} @ ${home.offsetSec} s`,
     ];
   }

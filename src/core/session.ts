@@ -1,5 +1,5 @@
 import { BALANCE } from '../data/balance';
-import { stepRide, type RideEvent } from './busRide';
+import { stepRide, tooLateForNext, type RideEvent } from './busRide';
 import {
   jolt,
   microsleepMinutes,
@@ -15,6 +15,7 @@ import { addModifier, setMeterValue, updateMeters, type MeterContext, type Meter
 import { rngFrom, type Rng } from './rng';
 import type { Route } from './route';
 import { resolveOutcome, type Outcome } from './outcome';
+import { stopPlan, type StopPlan } from './passengers';
 import { createRun, type LogEntry, type RunInit, type RunState } from './runState';
 
 /** Player actions. More (e.g. browsing the phone) will be added later. */
@@ -98,19 +99,28 @@ export class GameSession {
 
     if (!this.route) return [];
     const before = s.ride;
-    const ride = stepRide(before, this.route, dtMin * 60);
+    // The player's request counts for the first stop decided in this step only;
+    // a long (microsleep) step may pass several stops before events are handled.
+    let playerRequestUsed = false;
+    const wantsStop = (index: number) => {
+      const player = s.playerRequested && !playerRequestUsed;
+      if (player) playerRequestUsed = true;
+      const plan = this.stopPlan(index);
+      return player || plan.waiting || plan.otherRequest;
+    };
+    const ride = stepRide(before, this.route, dtMin * 60, wantsStop);
     s.ride = ride.ride;
 
     for (const { type, stopId, stopIndex } of ride.events) {
       if (s.outcome) break;
       const payload = { stopId, stopIndex };
       // When sick, the other passengers get the player off even asleep: not a missed stop.
-      const forcedOff = type === 'stopReached' && s.sick && s.stopRequested;
+      const forcedOff = type === 'stopReached' && s.sick && s.playerRequested;
       if (asleep && !forcedOff) {
-        if (type === 'stopReached') this.record('stopMissedWhileAsleep', payload);
+        if (type === 'stopReached' || type === 'stopPassed') this.record('stopMissedWhileAsleep', payload);
         if (type === 'terminusReached') this.record('terminusReached', payload);
-      } else if (type === 'stopReached' || type === 'terminusReached') {
-        // Arrivals are significant for the report; approach/departure are only notifications.
+      } else if (type === 'stopReached' || type === 'stopPassed' || type === 'terminusReached') {
+        // Arrivals and pass-bys are significant for the report; approach/departure are only notifications.
         this.record(type, payload);
       } else {
         this.bus.emit(type, payload);
@@ -118,14 +128,16 @@ export class GameSession {
       }
 
       if (type === 'stopReached') {
-        // The bus stops here; a pending request lets the player off if they are awake
-        // (when sick, the other passengers make sure they get off anyway).
-        const getsOff = s.stopRequested && (!asleep || s.sick);
-        s.stopRequested = false;
+        // The bus stops here; only the player's own request lets them off, and only
+        // awake (when sick, the other passengers make sure they get off anyway).
+        const getsOff = s.playerRequested && (!asleep || s.sick);
+        s.playerRequested = false;
+        s.otherRequested = false;
         if (getsOff) this.alight(stopIndex);
       }
       if (type === 'terminusReached' && !s.outcome) this.alight(stopIndex);
     }
+    if (!s.outcome) this.checkOtherRequest();
 
     if (!asleep) {
       if (s.ride.phase === 'braking' && before.phase !== 'braking') this.applyBrakeJolt();
@@ -138,6 +150,23 @@ export class GameSession {
     return ride.events;
   }
 
+  /** Who waits at stop `index` and whether another passenger asks to stop there. */
+  stopPlan(index: number): StopPlan {
+    return this.route ? stopPlan(this.state.seed, this.route, index) : { waiting: false, otherRequest: false, otherAtOffsetSec: null };
+  }
+
+  /** Another passenger presses the button once the bus passes their moment. */
+  private checkOtherRequest(): void {
+    const s = this.state;
+    if (s.otherRequested || s.ride.phase === 'finished') return;
+    const index = s.ride.stopIndex + 1;
+    const plan = this.stopPlan(index);
+    if (plan.otherAtOffsetSec === null || s.ride.offsetSec < plan.otherAtOffsetSec) return;
+    s.otherRequested = true;
+    const stop = this.route?.stops[index];
+    if (stop) this.bus.emit('otherStopRequested', { stopId: stop.id, stopIndex: index });
+  }
+
   /** Rates depend on how open the eyes are and whether the bus is moving. */
   meterContext(asleep = this.state.drowsiness.phase === 'asleep'): MeterContext {
     const s = this.state;
@@ -148,7 +177,7 @@ export class GameSession {
   private becomeSick(): void {
     const s = this.state;
     s.sick = true;
-    s.stopRequested = true;
+    s.playerRequested = true;
     this.record('nauseaCritical', { atOffsetSec: s.ride.offsetSec });
   }
 
@@ -180,7 +209,7 @@ export class GameSession {
     this.previousOffsetSec = s.ride.offsetSec;
     this.previousEyelid = 1;
 
-    const stopsMissed = events.filter((e) => e.type === 'stopReached').map((e) => e.stopId);
+    const stopsMissed = events.filter((e) => e.type === 'stopReached' || e.type === 'stopPassed').map((e) => e.stopId);
     this.record('microsleep', { startMin, durationMin, stopsMissed });
   }
 
@@ -240,12 +269,18 @@ export class GameSession {
     }
   }
 
-  /** Stop button: the bus stops at the next stop. Does nothing while asleep or once requested. */
+  /**
+   * Stop button: the bus stops at the next stop. Too close to it and the driver
+   * can't stop any more; the request then holds for the stop after. Does nothing
+   * while asleep or once requested.
+   */
   private requestStop(): void {
     const s = this.state;
-    if (s.outcome || s.stopRequested || s.drowsiness.phase !== 'awake' || s.ride.phase === 'finished') return;
-    s.stopRequested = true;
+    if (s.outcome || s.playerRequested || s.drowsiness.phase !== 'awake' || s.ride.phase === 'finished') return;
+    s.playerRequested = true;
     this.record('stopRequested', { atOffsetSec: s.ride.offsetSec });
+    const missed = this.route?.stops[s.ride.stopIndex + 1];
+    if (tooLateForNext(s.ride) && missed) this.record('requestTooLate', { stopId: missed.id, stopIndex: s.ride.stopIndex + 1 });
   }
 
   /** Eyelid interpolated between the last two steps, for rendering. */

@@ -19,6 +19,7 @@ export const STR = {
     stopButton: 'STOP',
     stopping: 'PYSÄHTYY',
     queasy: 'Nyt alkaa olla huono olo…',
+    tooLate: 'Kuski ei ehtinyt. Pysähdys seuraavalla.',
     sick: 'Ei enää… Seuraavalla pois, ihan sama missä.',
   },
   title: {
@@ -122,6 +123,15 @@ export const STR = {
     busPhase: 'Bussi',
     speed: 'nopeus',
     nextStop: 'Seuraava',
+    requests: 'Pyynnöt',
+    player: 'pelaaja',
+    other: 'muu',
+    willStop: 'pysähtyy',
+    undecided: 'ei päätetty',
+    yes: 'kyllä',
+    no: 'ohi',
+    waiting: 'odottaja',
+    otherAt: 'muu painaa @',
     home: 'Koti',
   },
 } as const;

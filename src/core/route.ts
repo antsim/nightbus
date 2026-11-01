@@ -13,6 +13,8 @@ const StopSchema = z.object({
   offsetSec: z.number().nonnegative(),
   isHome: z.boolean().optional(),
   isTerminus: z.boolean().optional(),
+  /** Popular stop (campus, hospital): other passengers ask to stop here more often. */
+  busy: z.boolean().optional(),
 });
 
 const LandmarkSchema = z.object({
