@@ -4,6 +4,7 @@ import routes from '../data/routes/bus-nro6.json';
 import { createRide, stepRide, type BusRideState, type RideEvent } from './busRide';
 import { parseRoute, type Route } from './route';
 import { GameSession } from './session';
+import { attentiveBot, driveBot } from './testing/bots';
 
 const stop = (id: string, offsetSec: number, extra: object = {}) => ({ id, name: id, lat: 0, lon: 0, offsetSec, ...extra });
 
@@ -125,13 +126,8 @@ describe('GameSession with a route', () => {
   const line6 = parseRoute(routes);
 
   it('drives the default route in 3–4 minutes of real time when awake', () => {
-    const session = GameSession.start({ seed: 1 }, line6);
-    let realMs = 0;
-    while (!session.finished && realMs < 10 * 60_000) {
-      session.tick(BALANCE.time.stepMs);
-      realMs += BALANCE.time.stepMs;
-      if (realMs % 500 === 0) session.handleInput('openEyes'); // no microsleeps
-    }
+    const session = driveBot(GameSession.start({ seed: 1 }, line6), attentiveBot());
+    const realMs = session.state.drowsiness.elapsedMs;
     expect(session.state.drowsiness.microsleeps).toBe(0);
     expect(session.finished).toBe(true);
     expect(realMs / 60_000).toBeGreaterThan(3);

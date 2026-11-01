@@ -111,10 +111,11 @@ export class BusScene extends Phaser.Scene {
     );
 
     const hint = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 60, STR.bus.hint, {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 75, [...STR.bus.hint], {
         fontFamily: 'sans-serif',
         fontSize: '18px',
         color: '#ffffff',
+        align: 'center',
         backgroundColor: '#00000088',
         padding: { x: 10, y: 6 },
       })
@@ -138,6 +139,7 @@ export class BusScene extends Phaser.Scene {
       bus.on('streetLightPassed', () => this.flashStreetLight()),
       bus.on('microsleep', () => this.fallAsleep()),
       bus.on('wokeUp', () => this.wakeUp()),
+      bus.on('startled', () => this.startle()),
       bus.on('announcement', (a) => this.announce(a)),
       bus.on('runEnded', ({ outcome }) => this.endRun(outcome)),
     ];
@@ -226,6 +228,13 @@ export class BusScene extends Phaser.Scene {
     const sh = BALANCE.scenery.shake;
     const intox = this.session.state.meters.intoxication.value;
     this.cameras.main.shake(sh.durationMs, sh.intensity * (1 + sh.perIntox * intox));
+  }
+
+  /** Pressed too early: a small jerk and quivering lids, so the player learns to wait. */
+  private startle(): void {
+    const st = LOOK.startle;
+    this.cameras.main.shake(st.shakeMs, st.shakeIntensity);
+    this.eyelids.flutter(st.flutterAmount, st.flutterMs);
   }
 
   private flashStreetLight(): void {

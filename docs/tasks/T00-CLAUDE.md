@@ -15,6 +15,18 @@
 | T07 | Loppuraportti ja pelikierroksen kulku | T06 |
 | T08 | PWA-tuki: asennettava ja offline-peli | T07 |
 
+## Vaihe 1.5: bussimatkasta haastava
+
+Pelitestin perusteella bussimatka oli liian helppo (silmät auki rytmillä) ja tylsä (ei päätöksiä, tieto liian selkeää).
+
+| # | Task | Riippuu |
+|---|------|---------|
+| T09 | Silmien avaaminen vaatii ajoitusta + tasapainobotit ja -mittarit | T08 |
+| T10 | Pahoinvointi vs. uni | T09 |
+| T11 | Pysähdykset vain pyynnöstä ja muut matkustajat | T09 |
+
+T10 ja T11 ovat toisistaan riippumattomia, mutta molemmat käyttävät T09:n botteja ja `balance.test.ts`-mittareita.
+
 Anna Claude Codelle yksi task kerrallaan: *"Lue CLAUDE.md ja docs/tasks/T0X-….md ja toteuta task. Aja testit ennen kuin sanot valmis."*
 
 ---

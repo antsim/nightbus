@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../data/balance';
-import routeData from '../data/routes/bus-nro6.json';
 import { resolveOutcome } from './outcome';
-import { homeStop, parseRoute } from './route';
+import { homeStop } from './route';
 import { GameSession } from './session';
+import { attentiveBot, defaultRoute as route, driveBot, runBot } from './testing/bots';
 
-const route = parseRoute(routeData);
 const STEP = BALANCE.time.stepMs;
 const homeIndex = route.stops.findIndex((s) => s.isHome);
 const idAt = (i: number) => route.stops[i]!.id;
@@ -22,33 +21,22 @@ describe('resolveOutcome', () => {
   it('rejects unknown stops', () => expect(() => resolveOutcome(route, 'nope')).toThrow());
 });
 
-/** Plays awake (pressing openEyes often) and presses the stop button once the bus has left `afterStopIndex`. */
+/** Plays awake and presses the stop button once the bus has left `afterStopIndex`. */
 function playAndRequestAfter(afterStopIndex: number | null, seed = 1) {
-  const session = GameSession.start({ seed }, route);
-  let ms = 0;
-  while (!session.finished && ms < 10 * 60_000) {
-    session.step(STEP);
-    ms += STEP;
-    if (ms % 400 === 0) session.handleInput('openEyes');
-    const r = session.state.ride;
-    if (afterStopIndex !== null && r.stopIndex === afterStopIndex && r.phase !== 'dwelling') {
-      session.handleInput('requestStop');
-    }
-  }
-  return session;
+  return runBot(attentiveBot(), afterStopIndex === null ? { seed } : { seed, stopAt: afterStopIndex });
 }
 
 describe('stop button and outcomes in play', () => {
   it('gets off at home when pressed after the previous stop', () => {
     const s = playAndRequestAfter(homeIndex - 1);
     expect(s.outcome).toEqual({ kind: 'home' });
-    expect(s.state.alight?.stopId).toBe(homeStop(route).id);
-    expect(s.state.alight?.lat).toBe(homeStop(route).lat);
-    expect(s.state.log.some((e) => e.type === 'alighted')).toBe(true);
+    expect(s.alight?.stopId).toBe(homeStop(route).id);
+    expect(s.alight?.lat).toBe(homeStop(route).lat);
+    expect(s.log.some((e) => e.type === 'alighted')).toBe(true);
   });
 
   it('too early', () => {
-    expect(playAndRequestAfter(homeIndex - 3)?.outcome).toEqual({ kind: 'tooEarly', stops: 2 });
+    expect(playAndRequestAfter(homeIndex - 3).outcome).toEqual({ kind: 'tooEarly', stops: 2 });
   });
 
   it('overshot', () => {
@@ -58,11 +46,11 @@ describe('stop button and outcomes in play', () => {
   it('terminus when never pressed', () => {
     const s = playAndRequestAfter(null);
     expect(s.outcome?.kind).toBe('terminus');
-    expect(s.state.alight?.stopIndex).toBe(route.stops.length - 1);
+    expect(s.alight?.stopIndex).toBe(route.stops.length - 1);
   });
 
   it('ends the run: no further time passes', () => {
-    const s = playAndRequestAfter(homeIndex - 1);
+    const s = driveBot(GameSession.start({ seed: 1 }, route), attentiveBot(), { stopAt: homeIndex - 1 });
     const t = s.state.clock.minutes;
     for (let i = 0; i < 50; i++) s.step(STEP);
     expect(s.state.clock.minutes).toBe(t);
@@ -75,10 +63,7 @@ describe('stop button and outcomes in play', () => {
     expect(s.state.stopRequested).toBe(true);
     s.handleInput('requestStop'); // second press is ignored
     expect(s.state.log.filter((e) => e.type === 'stopRequested')).toHaveLength(1);
-    while (!s.finished) {
-      s.step(STEP);
-      s.handleInput('openEyes');
-    }
+    driveBot(s, attentiveBot());
     expect(s.state.stopRequested).toBe(false);
     expect(s.outcome).toEqual({ kind: 'tooEarly', stops: homeIndex - 1 });
   });
@@ -110,12 +95,8 @@ describe('announcements', () => {
     const levels = { sober: [] as number[], drunk: [] as number[] };
     sober.bus.on('announcement', (a) => levels.sober.push(a.level));
     drunk.bus.on('announcement', (a) => levels.drunk.push(a.level));
-    for (let i = 0; i < 400; i++) {
-      sober.step(STEP);
-      drunk.step(STEP);
-      sober.handleInput('openEyes');
-      drunk.handleInput('openEyes');
-    }
+    driveBot(sober, attentiveBot(), { maxMs: 40_000 });
+    driveBot(drunk, attentiveBot(), { maxMs: 40_000 });
     expect(levels.sober.length).toBeGreaterThan(3);
     expect(levels.drunk[0]!).toBeGreaterThan(levels.sober[0]! + 0.3);
     expect(sober.state.announcement?.stopName).toBeTruthy();

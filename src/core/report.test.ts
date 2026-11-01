@@ -1,30 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../data/balance';
 import { REPORT_LINES } from '../data/reportLines.fi';
-import routeData from '../data/routes/bus-nro6.json';
 import { loadBest, saveIfBest, type KeyValueStorage } from '../services/bestScore';
 import { buildReport, pickLines, receiptNumber, type ReportFacts } from './report';
-import { parseRoute } from './route';
 import { GameSession } from './session';
+import { attentiveBot, defaultRoute as route, idleBot, runBot } from './testing/bots';
 
-const route = parseRoute(routeData);
-const STEP = BALANCE.time.stepMs;
 const homeIndex = route.stops.findIndex((s) => s.isHome);
 const B = BALANCE.score;
 
-/** Plays a run: keeps eyes open every `eyesEveryMs` (0 = never) and requests a stop after leaving `afterStop`. */
-function play(afterStop: number | null, opts: { seed?: number; eyesEveryMs?: number; fatigue?: number } = {}) {
-  const session = GameSession.start({ seed: opts.seed ?? 1, fatigue: opts.fatigue ?? 0.5 }, route);
-  const every = opts.eyesEveryMs ?? 400;
-  let ms = 0;
-  while (!session.finished && ms < 10 * 60_000) {
-    session.step(STEP);
-    ms += STEP;
-    if (every > 0 && ms % every === 0) session.handleInput('openEyes');
-    const r = session.state.ride;
-    if (afterStop !== null && r.stopIndex === afterStop && r.phase !== 'dwelling') session.handleInput('requestStop');
-  }
-  return session;
+/** Plays a run awake (or asleep with `idle`) and requests a stop after leaving `afterStop`. */
+function play(afterStop: number | null, opts: { seed?: number; idle?: boolean; fatigue?: number } = {}) {
+  const bot = opts.idle ? idleBot() : attentiveBot();
+  const run = { seed: opts.seed ?? 1, fatigue: opts.fatigue ?? 0.5 };
+  return { state: runBot(bot, afterStop === null ? run : { ...run, stopAt: afterStop }) };
 }
 
 const total = (r: { scoreItems: { points: number }[] }) => r.scoreItems.reduce((s, i) => s + i.points, 0);
@@ -59,7 +48,7 @@ describe('buildReport', () => {
   });
 
   it('terminus, with microsleeps and stops missed', () => {
-    const r = buildReport(play(null, { eyesEveryMs: 0, fatigue: 0.8, seed: 3 }).state, route);
+    const r = buildReport(play(null, { idle: true, fatigue: 0.8, seed: 3 }).state, route);
     expect(r.outcome.kind).toBe('terminus');
     expect(r.alightStopName).toBe('Vatiala A');
     expect(r.microsleeps).toBeGreaterThan(0);
@@ -89,7 +78,7 @@ describe('buildReport', () => {
 });
 
 describe('report lines', () => {
-  const facts = buildReport(play(null, { eyesEveryMs: 0, fatigue: 0.8, seed: 3 }).state, route) as ReportFacts;
+  const facts = buildReport(play(null, { idle: true, fatigue: 0.8, seed: 3 }).state, route) as ReportFacts;
 
   it('picks at most three matching lines without duplicates', () => {
     const lines = pickLines(facts, REPORT_LINES);

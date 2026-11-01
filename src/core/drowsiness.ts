@@ -9,6 +9,9 @@ import type { Rng } from './rng';
 
 export type EyePhase = 'awake' | 'asleep';
 
+/** What the latest press did: opened the eyes, opened them weakly (mashing), or startled (too early). */
+export type PressEffect = 'opened' | 'mashed' | 'startled';
+
 export interface EyelidWave {
   elapsedSec: number;
   durationSec: number;
@@ -30,7 +33,13 @@ export interface DrowsinessState {
   asleepMs: number;
   /** Remaining "where am I" period after waking. */
   confusedMs: number;
+  /** Time of the latest press that opened the eyes (anti-mashing). */
   lastInputMs: number | null;
+  lastPress: PressEffect | null;
+  /** Presses that came too early. */
+  startles: number;
+  /** Builds up with startles, calms down over time; at 1 or more every press startles. */
+  jumpiness: number;
   microsleeps: number;
   lastMicrosleepAtMin: number | null;
   longestMicrosleepMin: number;
@@ -63,6 +72,9 @@ export function createDrowsiness(rng: Rng, fatigue: number): DrowsinessState {
     asleepMs: 0,
     confusedMs: 0,
     lastInputMs: null,
+    lastPress: null,
+    startles: 0,
+    jumpiness: 0,
     microsleeps: 0,
     lastMicrosleepAtMin: null,
     longestMicrosleepMin: 0,
@@ -109,6 +121,7 @@ export function updateEyes(prev: DrowsinessState, dtSec: number, fatigue: number
 
   s.elapsedMs += dtSec * 1000;
   s.confusedMs = Math.max(0, s.confusedMs - dtSec * 1000);
+  s.jumpiness = Math.max(0, s.jumpiness - E.input.jumpinessDecayPerSec * dtSec);
 
   let waveStarted = false;
   if (s.wave) {
@@ -137,25 +150,52 @@ export function updateEyes(prev: DrowsinessState, dtSec: number, fatigue: number
   return { state: s, fellAsleep: s.closedMs >= BALANCE.sleep.graceMs, waveStarted };
 }
 
-/** Player forces the eyes open. Rapid mashing and pressing while the eyes are still open help less. */
+export function isFlustered(state: DrowsinessState): boolean {
+  return state.jumpiness >= 1;
+}
+
+/**
+ * Player forces the eyes open. Only works once the eyes are more than half
+ * closed; an earlier press (or any press while flustered) startles the player,
+ * which makes things worse. Rapid mashing of otherwise well-timed presses helps less.
+ */
 export function openEyes(prev: DrowsinessState, nowMs: number): DrowsinessState {
   if (prev.phase !== 'awake') return prev;
   const input = E.input;
-  let factor = 1;
-  if (prev.lastInputMs !== null && nowMs - prev.lastInputMs < input.spamWindowMs) factor *= input.spamFactor;
-  if (prev.eyelid < input.halfClosedThreshold) factor *= input.earlyPressFactor;
+  if (prev.eyelid < input.halfClosedThreshold || isFlustered(prev)) return startle(prev);
+  const mashed = prev.lastInputMs !== null && nowMs - prev.lastInputMs < input.spamWindowMs;
   return {
     ...prev,
-    eyelid: Math.max(0, prev.eyelid - input.openAmount * factor),
+    eyelid: Math.max(0, prev.eyelid - input.openAmount * (mashed ? input.spamFactor : 1)),
     closedMs: 0,
     lastInputMs: nowMs,
+    lastPress: mashed ? 'mashed' : 'opened',
   };
 }
 
-/** Sudden stimulus (bright light, hard braking) opens the eyes a bit. */
+/** Too early a press: the eyes sag a bit and the next wave of drowsiness comes sooner. */
+function startle(prev: DrowsinessState): DrowsinessState {
+  const input = E.input;
+  const advance = prev.wave
+    ? { wave: { ...prev.wave, depth: Math.min(E.wave.maxDepth, prev.wave.depth + input.earlyPressWaveDepthBoost) } }
+    : { nextWaveInSec: Math.max(0, prev.nextWaveInSec - input.earlyPressWaveAdvanceSec) };
+  return {
+    ...prev,
+    ...advance,
+    eyelid: Math.min(1, prev.eyelid + input.earlyPressPenalty),
+    lastPress: 'startled',
+    startles: prev.startles + 1,
+    jumpiness: Math.min(input.jumpinessMax, prev.jumpiness + input.startleJumpiness),
+  };
+}
+
+/**
+ * Sudden stimulus (bright light, hard braking) opens the eyes a bit. Closed time
+ * is left to `updateEyes`, so a faint flicker doesn't interrupt falling asleep.
+ */
 export function jolt(prev: DrowsinessState, amount: number): DrowsinessState {
   if (prev.phase !== 'awake') return prev;
-  return { ...prev, eyelid: Math.max(0, prev.eyelid - amount), closedMs: 0 };
+  return { ...prev, eyelid: Math.max(0, prev.eyelid - amount) };
 }
 
 /** Length of a microsleep in game minutes: longer when more tired. */
@@ -173,6 +213,7 @@ export function startSleep(prev: DrowsinessState, atMin: number, durationMin: nu
     wave: null,
     nextWaveInSec: nextWaveGapSec(fatigue, rng),
     closedMs: 0,
+    jumpiness: 0,
     asleepMs: BALANCE.sleep.blackoutMs,
     microsleeps: prev.microsleeps + 1,
     lastMicrosleepAtMin: atMin,

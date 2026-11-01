@@ -67,7 +67,7 @@ export const BALANCE = {
       gapScaleExhausted: 0.6,
       durationMinSec: 2,
       durationMaxSec: 5,
-      depthBase: 0.15,
+      depthBase: 0.3,
       depthPerFatigue: 0.95,
       depthJitter: 0.2,
       maxDepth: 1.4,
@@ -77,12 +77,26 @@ export const BALANCE = {
     input: {
       /** Eyelid reduction per press. */
       openAmount: 0.4,
-      /** Presses closer together than this count less (anti-mashing, option a). */
+      /** Opening presses closer together than this count less (anti-mashing). */
       spamWindowMs: 300,
       spamFactor: 0.3,
-      /** Presses while the eyes are less than this closed count less (option b). Set 0 to disable. */
-      halfClosedThreshold: 0.25,
-      earlyPressFactor: 0.5,
+      /**
+       * A press while the eyes are less than this closed is too early: the player
+       * startles instead, the eyes close by `earlyPressPenalty` and the next wave
+       * comes `earlyPressWaveAdvanceSec` sooner (or a running wave deepens).
+       */
+      halfClosedThreshold: 0.5,
+      earlyPressPenalty: 0.1,
+      earlyPressWaveAdvanceSec: 1.5,
+      earlyPressWaveDepthBoost: 0.1,
+      /**
+       * Each startle adds jumpiness, which calms down over real time. At 1 or more
+       * the player is flustered: every press startles, even with the eyes closing.
+       * One mistake is forgiven; pressing on a steady beat is not.
+       */
+      startleJumpiness: 0.34,
+      jumpinessMax: 1.5,
+      jumpinessDecayPerSec: 0.2,
     },
   },
   sleep: {
@@ -109,6 +123,8 @@ export const BALANCE = {
     blurMax: 0.8,
     blurPerEyelid: 0.5,
     confusionBlur: 2,
+    /** Startle feedback: a small camera jerk and a quiver of the eyelids. */
+    startle: { shakeMs: 140, shakeIntensity: 0.006, flutterAmount: 0.07, flutterMs: 300 },
   },
   wakers: {
     /** Eyelid opened by a hard brake / a street light flash. */

@@ -6,6 +6,13 @@ const SOFT_EDGE = 16;
 const SEGMENTS = 32;
 /** Overlap past the middle so the lids meet without a gap. */
 const OVERLAP = 12;
+/**
+ * The lower lid moves less until the eyes are nearly shut. Tuned so that at
+ * eyelid 0.5 (where pressing starts to help) both lids cover about a quarter.
+ */
+const LOWER_LID_CURVE = 1.2;
+/** Flutter oscillations per second. */
+const FLUTTER_HZ = 18;
 
 /**
  * Upper and lower eyelids covering the screen. Position comes straight from
@@ -14,22 +21,34 @@ const OVERLAP = 12;
 export class Eyelids {
   private readonly g: Phaser.GameObjects.Graphics;
   private last = -1;
+  /** Current flutter amplitude in eyelid units; tweened down to 0. */
+  private flutterAmp = 0;
 
-  constructor(scene: Phaser.Scene, depth: number) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    depth: number,
+  ) {
     this.g = scene.add.graphics().setDepth(depth);
+  }
+
+  /** A brief quiver of the lids (e.g. startle). */
+  flutter(amount: number, durationMs: number): void {
+    this.scene.tweens.killTweensOf(this);
+    this.flutterAmp = amount;
+    this.scene.tweens.add({ targets: this, flutterAmp: 0, duration: durationMs, ease: 'Quad.easeOut' });
   }
 
   /** 0 = open, 1 = closed. */
   set(eyelid: number): void {
-    const v = Math.round(eyelid * 1000) / 1000;
+    const quiver = this.flutterAmp * Math.sin((this.scene.time.now / 1000) * FLUTTER_HZ * Math.PI * 2);
+    const v = Math.round(Math.min(1, Math.max(0, eyelid + quiver)) * 1000) / 1000;
     if (v === this.last) return;
     this.last = v;
     const g = this.g.clear();
     if (v <= 0) return;
 
-    // The lower lid moves less until the eyes are nearly shut.
     this.drawLid(g, v, 1);
-    this.drawLid(g, Math.pow(v, 1.8), -1);
+    this.drawLid(g, Math.pow(v, LOWER_LID_CURVE), -1);
   }
 
   /** dir 1 = upper lid (from the top), -1 = lower lid (from the bottom). */

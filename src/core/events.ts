@@ -17,6 +17,8 @@ export type GameEvents = {
   microsleep: { startMin: number; durationMin: number; stopsMissed: string[] };
   wokeUp: { durationMin: number };
   waveStarted: { depth: number };
+  /** Pressed too early: eyes sagged to `eyelid`. */
+  startled: { eyelid: number };
   streetLightPassed: Record<string, never>;
   jolt: { source: 'brake' | 'streetLight'; amount: number };
   stopRequested: { atOffsetSec: number };

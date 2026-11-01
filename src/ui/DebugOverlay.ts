@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { formatTime } from '../core/clock';
+import { isFlustered } from '../core/drowsiness';
 import { METER_IDS } from '../core/meters';
 import { formatEuros } from '../core/money';
 import { homeStop, nextStop, type Route } from '../core/route';
@@ -97,8 +98,11 @@ export class DebugOverlay {
     const wave = e.wave ? ` (${e.wave.depth.toFixed(2)} ${(e.wave.elapsedSec / e.wave.durationSec * 100).toFixed(0)}%)` : '';
     const since =
       e.lastMicrosleepAtMin === null ? d.none : `${(s.clock.minutes - e.lastMicrosleepAtMin).toFixed(1)} min`;
+    const press = e.lastPress === null ? d.none : d.pressEffects[e.lastPress];
+    const flustered = isFlustered(e) ? ` ${d.flustered}` : '';
     return [
       `${d.eyes.padEnd(8)} ${bar(e.eyelid)} ${d.waves} ${e.waveCount}${wave} ${flags}`,
+      `${d.startles}: ${e.startles}, ${d.jumpiness} ${e.jumpiness.toFixed(2)}${flustered}, ${d.lastPress}: ${press}`,
       `${d.microsleeps}: ${e.microsleeps}, ${d.sinceLast} ${since}`,
     ];
   }

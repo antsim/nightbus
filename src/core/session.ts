@@ -206,10 +206,13 @@ export class GameSession {
   handleInput(action: PlayerAction): void {
     const d = this.state.drowsiness;
     switch (action) {
-      case 'openEyes':
-        this.state.drowsiness = openEyes(d, d.elapsedMs + this.accumulatorMs);
-        this.previousEyelid = Math.min(this.previousEyelid, this.state.drowsiness.eyelid);
+      case 'openEyes': {
+        const next = openEyes(d, d.elapsedMs + this.accumulatorMs);
+        this.state.drowsiness = next;
+        this.previousEyelid = Math.min(this.previousEyelid, next.eyelid);
+        if (next.startles > d.startles) this.record('startled', { eyelid: next.eyelid });
         break;
+      }
       case 'requestStop':
         this.requestStop();
         break;
